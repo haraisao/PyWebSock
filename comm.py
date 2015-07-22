@@ -191,7 +191,6 @@ class SocketAdaptor(threading.Thread):
   # Backgrount job (server side)
   #
   def accept_service(self, flag=True):
-
     return None
 
   def wait_accept_service(self, timeout=5, runflag=True):
@@ -292,8 +291,11 @@ class SocketServer(SocketAdaptor):
     self.service_id = 0
     self.mainloop = False
     self.debug = False
+    self.server_adaptor = None
     self.setServerMode()
+    self.cometManager = CometManager(self)
     self.bind()
+
   #
   # 
   #
@@ -333,6 +335,12 @@ class SocketServer(SocketAdaptor):
   #
   #
   #
+  def getServer(self):
+    return self
+
+  #
+  #
+  #
   def run(self):
     self.accept_service_loop()
 
@@ -362,6 +370,9 @@ class SocketService(SocketAdaptor):
   #
   def run(self):
     self.message_reciever()
+
+  def getServer(self):
+    return self.server_adaptor
 
 #
 #  Commands 
@@ -410,21 +421,17 @@ class CommReader:
     self.response=""
     self.owner = owner
     if parser is None:
-      self.parser = Marshaller('')
+      self.parser = CommParser('')
     else:
       self.parser = parser
- 
-    if owner is None:
-      self.debug = True
-    else:
-      self.debug = False
+    self.debug = False
 
   #
   #  parse recieved data, called by SocketAdaptor
   #
   def parse(self, data):
- #   if self.debug:
- #     print data
+    if self.debug:
+      print data
     self.appendBuffer( data )
     self.checkBuffer()
 
@@ -433,6 +440,9 @@ class CommReader:
   #
   def setOwner(self, owner):
     self.owner = owner
+
+  def getServer(self):
+    return  self.owner.getServer()
 
   #
   #  Buffer
@@ -480,7 +490,7 @@ class CommReader:
     return False
      
   #
-  #
+  # Send response message
   #
   def send(self, flag=False):
     if self.owner :
@@ -490,17 +500,20 @@ class CommReader:
 
     if flag:
       self.owner.close()
-
     return
 
+  #
+  # Append response message
+  #
   def setResponse(self, msg):
     self.response += msg
-
     return
 
+  #
+  # Clear response message
+  #
   def clearResponse(self):
     self.response=""
-
     return
 
   #
@@ -529,9 +542,9 @@ class CommReader:
       self.parser.printPacket(data)
 
 #
-# Marshal/Unmarshal command packet 
+# CommParser: parse the reveived message
 #
-class Marshaller:
+class CommParser:
   def __init__(self, buffer, rdr=None):
     self.buffer=buffer
     self.bufsize = len(buffer)
@@ -580,13 +593,14 @@ class Marshaller:
     print
 
 #
-#  marshalling command 
-#     Marshaller <--- DataCommand
+#  Httpd  
+#     CommParser <--- HttpCommand
 #
-class HttpCommand(Marshaller):
-  def __init__(self, dirname="", buffer=''):
-    Marshaller.__init__(self, buffer)
+class HttpCommand(CommParser):
+  def __init__(self, dirname=".", buffer=''):
+    CommParser.__init__(self, buffer)
     self.dirname=dirname
+    self.buffer = buffer
 
   def setRootDir(self, dirname):
     self.dirname=dirname
@@ -596,54 +610,146 @@ class HttpCommand(Marshaller):
     if pos > 0:
       pos += offset + 4
       self.msg = buffer[offset:pos]
+      self.buffer = buffer[pos:]
       self.doProcess(self.msg, reader)
       return pos
     return 0
 
   def doProcess(self, msg, reader):
-    cmdset = msg.split("\r\n")
-    cmd = cmdset[0].split(' ')
-    reader.clearResponse()
+    header = msg.split("\r\n")
+    cmds = header[0].split(' ')
+    cmd = cmds[0].strip()
+    fname = cmds[1].strip()
+    proto = cmds[2].strip()
 
-    if cmd[0].strip() == "GET":
-      fname = cmd[1].strip()
-      proto = cmd[2].strip()
+    header.pop()
+    header.pop()
+    header.remove( header[0] )
 
-      if reader:
+    if reader:
+      reader.clearResponse()
+
+      if cmd == "GET":
         if fname == "/" :
           fname = "/index.html"
+
         contents = get_file_contents(fname, self.dirname)
 	ctype = get_content_type(fname)
-	date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
+
 	if contents is None:
-          reader.setResponse("HTTP/1.0 204 Not Found\r\n")
-	  reader.setResponse("Date: "+date+"\r\n")
-	  reader.setResponse("\r\n")
+          self.response404(reader)
 	else:
-          reader.setResponse("HTTP/1.0 200 OK\r\n")
-	  reader.setResponse("Date: "+date+"\r\n")
-	  reader.setResponse("Content-Type: "+ctype+"\r\n")
-	  reader.setResponse("\r\n")
-          reader.setResponse(contents)
+          self.response200(ctype, contents, reader)
 
         reader.send(True)
 
-    elif cmd[0].strip() == "POST":
-      fname = cmd[1].strip()
-      print fname
-      if reader:
-	contents = "Hello"
-	date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
-        reader.setResponse("HTTP/1.0 200 OK\r\n")
-	reader.setResponse("Date: "+date+"\r\n")
-	reader.setResponse("Content-Type: text/plain\r\n")
-	reader.setResponse("Content-Length: "+str(len(contents))+"\r\n")
-	reader.setResponse("\r\n")
-        reader.setResponse(contents)
+      elif cmd == "POST":
+        if fname == "/comet" :
+	  headerSet = self.parseHeader(header)
+	  try:
+	    Data = parseData(self.buffer[:int(headerSet["Content-Length"])])
+	    self.registerHandler(reader, Data['id'])
+	  except:
+            self.response400(reader)
+            reader.send(True)
 
+        elif fname == "/comet_event" :
+	  headerSet = self.parseHeader(header)
+	  Data = parseData(self.buffer[:int(headerSet["Content-Length"])])
+	  try:
+	    self.callHandler(reader, Data['id'])
+	  except:
+            pass
+          date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
+          self.response200("application/json", '{"result":"OK", "date": "'+date+'"}', reader)
+          reader.send(True)
+
+	else:
+	  contents = "Hello"
+          self.response200("text/plain", contents, reader)
+          reader.send(True)
+      else:
+        self.response400(reader)
         reader.send(True)
+
+    else:
+      print "Error: No reader found"
+
     return
 
+  def parseHeader(self, header):
+    res = {}
+    for h in header:
+      key, val = h.split(':', 1)
+      res[key.strip()] = val.strip()
+    return res
+
+  def registerHandler(self, reader, id):
+    server = reader.getServer()
+    server.cometManager.registerHandler(reader,id)
+    return
+
+  def callHandler(self, reader, id):
+    server = reader.getServer()
+    server.cometManager.callHandler(id)
+    return
+
+  def response200(self, ctype, contents, reader):
+    date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
+    reader.setResponse("HTTP/1.0 200 OK\r\n")
+    reader.setResponse("Date: "+date+"\r\n")
+    reader.setResponse("Content-Type: "+ctype+"\r\n")
+    reader.setResponse("Content-Length: "+str(len(contents))+"\r\n")
+    reader.setResponse("\r\n")
+    reader.setResponse(contents)
+
+  def response404(self, reader):
+    date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
+    reader.setResponse("HTTP/1.0 404 Not Found\r\n")
+    reader.setResponse("Date: "+date+"\r\n")
+    reader.setResponse("\r\n")
+
+  def response400(self, reader):
+    date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
+    reader.setResponse("HTTP/1.0 400 Bad Request\r\n")
+    reader.setResponse("Date: "+date+"\r\n")
+    reader.setResponse("\r\n")
+
+#
+#     CometManager
+#
+class CometManager:
+  def __init__(self, server):
+    self.server = server
+    self.long_pollings = {}
+
+  def resieter(self, reader, id):
+    self.long_pollings[id] = reader
+
+  def registerHandler(self, reader, id):
+    self.long_pollings[id] = reader
+    return
+
+  def callHandler(self, id):
+    date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
+    contents = '{"id":"'+id+'", "date":"'+date+'","message": "Push message"}'
+    self.response(id, contents, "application/json")
+    return
+
+  def response(self, id, contents, ctype="text/plain"):
+    reader = self.long_pollings[id]
+    date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
+    reader.setResponse("HTTP/1.0 200 OK\r\n")
+    reader.setResponse("Date: "+date+"\r\n")
+    reader.setResponse("Content-Type: "+ctype+"\r\n")
+    reader.setResponse("Content-Length: "+str(len(contents))+"\r\n")
+    reader.setResponse("\r\n")
+    reader.setResponse(contents)
+
+    reader.send(True)
+    self.long_pollings[id] = None
+
+############# Functoins
 #
 #
 #
@@ -683,8 +789,15 @@ def get_content_type(fname):
     pass
   return ctype
 
+def parseData(data):
+  res = {}
+  ar = data.split("&")
+  for a in ar:
+    key, val = a.split("=")
+    res[key.strip()] = val.strip()
+  return res
 #
 #
 #
-def create_httpd_server(num=80, top=""):
+def create_httpd_server(num=80, top="."):
   return SocketServer(CommReader(None, HttpCommand(top)), "Web", "localhost", num)
