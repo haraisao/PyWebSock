@@ -15,13 +15,14 @@ import datetime
 import threading
 import struct
 import copy
+import json
 
 #
 # Raw Socket Adaptor
 #
-#   threading.Tread <--- SocketAdaptor
+#   threading.Tread <--- SocketComm
 #
-class SocketAdaptor(threading.Thread):
+class SocketComm(threading.Thread):
   def __init__(self, reader, name, host, port):
     threading.Thread.__init__(self)
     self.reader = reader
@@ -283,9 +284,9 @@ class SocketAdaptor(threading.Thread):
 #
 #  Server Adaptor
 #
-class SocketServer(SocketAdaptor):
+class SocketServer(SocketComm):
   def __init__(self, reader, name, host, port):
-    SocketAdaptor.__init__(self, reader, name, host, port)
+    SocketComm.__init__(self, reader, name, host, port)
     self.socket = None
     self.service = []
     self.service_id = 0
@@ -356,9 +357,9 @@ class SocketServer(SocketAdaptor):
 #
 #  Service Adaptor
 #
-class SocketService(SocketAdaptor):
+class SocketService(SocketComm):
   def __init__(self, server, reader, name, sock, addr):
-    SocketAdaptor.__init__(self, reader, name, addr[0], addr[1])
+    SocketComm.__init__(self, reader, name, addr[0], addr[1])
     self.socket = sock
     self.mainloop = False
     self.server_adaptor = server
@@ -427,7 +428,7 @@ class CommReader:
     self.debug = False
 
   #
-  #  parse recieved data, called by SocketAdaptor
+  #  parse recieved data, called by SocketComm
   #
   def parse(self, data):
     if self.debug:
@@ -597,7 +598,7 @@ class CommParser:
 #     CommParser <--- HttpCommand
 #
 class HttpCommand(CommParser):
-  def __init__(self, dirname=".", buffer=''):
+  def __init__(self, dirname="html", buffer=''):
     CommParser.__init__(self, buffer)
     self.dirname=dirname
     self.buffer = buffer
@@ -622,8 +623,6 @@ class HttpCommand(CommParser):
     fname = cmds[1].strip()
     proto = cmds[2].strip()
 
-    header.pop()
-    header.pop()
     header.remove( header[0] )
 
     if reader:
@@ -644,11 +643,11 @@ class HttpCommand(CommParser):
         reader.send(True)
 
       elif cmd == "POST":
-        if fname == "/comet" :
+        if fname == "/comet_request" :
 	  headerSet = self.parseHeader(header)
 	  try:
 	    Data = parseData(self.buffer[:int(headerSet["Content-Length"])])
-	    self.registerHandler(reader, Data['id'])
+	    self.registerHandler(reader, Data['id'], Data)
 	  except:
             self.response400(reader)
             reader.send(True)
@@ -656,12 +655,15 @@ class HttpCommand(CommParser):
         elif fname == "/comet_event" :
 	  headerSet = self.parseHeader(header)
 	  Data = parseData(self.buffer[:int(headerSet["Content-Length"])])
+	  res={}
 	  try:
-	    self.callHandler(reader, Data['id'])
+	    self.callHandler(reader, Data['id'], Data)
+            res["result"] = "OK"
 	  except:
-            pass
-          date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
-          self.response200("application/json", '{"result":"OK", "date": "'+date+'"}', reader)
+            res["result"] = "ERROR"
+
+          res["date"] = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
+          self.response200("application/json", json.dumps(res), reader)
           reader.send(True)
 
 	else:
@@ -680,18 +682,19 @@ class HttpCommand(CommParser):
   def parseHeader(self, header):
     res = {}
     for h in header:
-      key, val = h.split(':', 1)
-      res[key.strip()] = val.strip()
+      if h.find(":") > 0 :
+        key, val = h.split(':', 1)
+        res[key.strip()] = val.strip()
     return res
 
-  def registerHandler(self, reader, id):
+  def registerHandler(self, reader, id, data):
     server = reader.getServer()
-    server.cometManager.registerHandler(reader,id)
+    server.cometManager.registerHandler(reader,id, data)
     return
 
-  def callHandler(self, reader, id):
+  def callHandler(self, reader, id, data):
     server = reader.getServer()
-    server.cometManager.callHandler(id)
+    server.cometManager.callHandler(id, data)
     return
 
   def response200(self, ctype, contents, reader):
@@ -726,13 +729,16 @@ class CometManager:
   def resieter(self, reader, id):
     self.long_pollings[id] = reader
 
-  def registerHandler(self, reader, id):
+  def registerHandler(self, reader, id, data):
     self.long_pollings[id] = reader
     return
 
-  def callHandler(self, id):
-    date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
-    contents = '{"id":"'+id+'", "date":"'+date+'","message": "Push message"}'
+  def callHandler(self, id, data):
+    res={}
+    res["id"] = id
+    res["message"] = "Push message"
+    res["date"] = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
+    contents = json.dumps(res)
     self.response(id, contents, "application/json")
     return
 
