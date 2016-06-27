@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>WebSocket Sample</title>
+    <script type="text/javascript" src="./jquery.js"></script>
+    <script type="text/javascript">
+        // 接続先URI
+        var uri = "ws://" + location.host + "/sample/blob";
+
+        // WebSocketオブジェクト
+        var webSocket = null;
+
+        // ファイル
+        var file = null;
+
+        // 初期処理
+        function init() {
+            // ファイル選択時
+            $("[data-name='sendfile']").change(filechange);
+        }
+
+        // ファイル選択時
+        function filechange() {
+            // ファイル存在チェック
+            if (file == null) {
+                // ファイル取得
+                var files = $(this).get(0).files;
+                if (files.length > 0) {
+                    file = files[0];
+                    // 接続
+                    open();
+                }
+            }
+        }
+
+        // 接続
+        function open() {
+            if (webSocket == null) {
+                // WebSocket の初期化
+                webSocket = new WebSocket(uri);
+                // イベントハンドラの設定
+                webSocket.onopen = onOpen;
+                webSocket.onmessage = onMessage;
+                webSocket.onclose = onClose;
+                webSocket.onerror = onError;
+            }
+        }
+
+        // 接続イベント
+        function onOpen(event) {
+            $("[data-name='status']").text("OPEN");
+            try {
+                // WebSoket存在判定
+                if (webSocket != null) {
+                    // ファイル存在判定
+                    if (file != null) {
+                        // ファイル送信
+                        webSocket.send(file);
+                        file = null;
+                    }
+                    // 切断
+                    webSocket.close();
+                    webSocket = null;
+                }
+            } catch (e) {
+                $("[data-name='status']").text("Error:" + e.message);
+
+            }
+        }
+
+        // メッセージ受信イベント
+        function onMessage(event) {
+            if (event && event.data) {
+                $("[data-name='status']").text("MESSAGE:" + event.data);
+            }
+        }
+
+        // エラーイベント
+        function onError(event) {
+            $("[data-name='status']").text("ERROR");
+        }
+
+        // 切断イベント
+        function onClose(event) {
+            $("[data-name='status']").text("CLOSE");
+            webSocket = null;
+        }
+
+        // 初期処理登録
+        $(init);
+    </script>
+</head>
+<body>
+    <div data-name="status">&nbsp;</div>
+    <input type="file" data-name="sendfile" />
+</body>
+</html>
+

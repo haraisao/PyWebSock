@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>WebSocket Sample</title>
+    <script type="text/javascript" src="./jquery.js"></script>
+    <script type="text/javascript" src="./jquery-ui.js"></script>
+    <script type="text/javascript">
+        // 接続先URI
+        var uri = "ws://" + location.host + "/sample/json";
+
+        // WebSocketオブジェクト
+        var webSocket = null;
+
+        // ボール
+        var balls = null;
+
+        // ボールの場所
+        var ballpos = { t: 0, l: 0 };
+
+        // 初期処理
+        function init() {
+            // ボール生成
+            ball = $("<div>").width(20).height(20)
+                .css("background-color", "#f00").css("border-radius", "10px");
+            // ボールの可動範囲設定
+            ball.draggable({ containment: "[data-name='square']" });
+            // ボールのイベント設定
+            ball.on("drag", dragball);
+            // ボール描写
+            $("[data-name='square']").append(ball);
+            // ボール移動（早さ０）
+            move(0);
+            // 接続
+            open();
+        }
+
+        // ボール移動
+        function move(spped) {
+            // 各ボール移動
+            ball.stop();
+            ball.animate({ top: ballpos.t, left: ballpos.l }, spped);
+        }
+
+        // ボール移動イベント
+        function dragball(event, ui) {
+            // ボール位置設定
+            ballpos.t = ui.position.top.toFixed(0);
+            ballpos.l = ui.position.left.toFixed(0);
+            // ボール位置設定
+            var msg = JSON.stringify(ballpos);
+            if (webSocket) {
+                webSocket.send(msg);
+            }
+            $("[data-name='status']").text(msg);
+        }
+
+        // 接続
+        function open() {
+            if (webSocket == null) {
+                // WebSocket の初期化
+                webSocket = new WebSocket(uri);
+                // イベントハンドラの設定
+                webSocket.onopen = onOpen;
+                webSocket.onmessage = onMessage;
+                webSocket.onclose = onClose;
+                webSocket.onerror = onError;
+            }
+        }
+
+        // 接続イベント
+        function onOpen(event) {
+            $("[data-name='status']").text("OPEN");
+        }
+
+        // メッセージ受信イベント
+        function onMessage(event) {
+            if (event && event.data) {
+                var pos = JSON.parse(event.data);
+                ballpos = pos;
+                move(5);
+                $("[data-name='status']").text(event.data);
+            }
+        }
+
+        // エラーイベント
+        function onError(event) {
+            $("[data-name='status']").text("ERROR");
+        }
+
+        // 切断イベント
+        function onClose(event) {
+            $("[data-name='status']").text("CLOSE");
+            webSocket = null;
+            setTimeout("open()", 3000);
+        }
+
+        // 初期処理登録
+        $(init);
+    </script>
+</head>
+<body>
+    <div data-name="status">&nbsp;</div>
+    <div data-name="square" style="width: 400px; height: 300px; background-color: gray"></div>
+</body>
+</html>
+
