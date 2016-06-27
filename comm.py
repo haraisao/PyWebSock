@@ -520,7 +520,7 @@ class CometReader(CommReader):
 
     if cmd == "GET":
       if 'Connection' in header and header['Connection'] == "Upgrade" and 'Upgrade' in header and header['Upgrade'] == "websocket":
-        self.webSocketRequest(header)
+        self.webSocketRequest(header, fname)
 
       else:
         contents = get_file_contents(fname, self.dirname)
@@ -552,11 +552,13 @@ class CometReader(CommReader):
 
     return
 
-  def webSocketRequest(self, header):
+  def webSocketRequest(self, header, fname):
     try:
-      print "Call WebSocket Request"
+      print "Call WebSocket Request: "+fname
       key = header['Sec-WebSocket-Key']
       version = header['Sec-WebSocket-Version']
+      func = fname.split('/')[-1]
+      print func
 
       if key:
         ws_key = base64.b64decode(key.encode('utf-8'))
@@ -575,7 +577,7 @@ class CometReader(CommReader):
       response = self.parser.response101(responseHeaders, "")
       print response
 
-      self.parser = WebSocketCommand(self)
+      self.parser = WebSocketCommand(self, func)
       self.sendResponse(response, False)
     except:
       self.sendResponse(self.parser.response404())
@@ -778,46 +780,70 @@ class HttpCommand(CommParser):
 #     CommParser <--- WebSocketCommand
 #
 class WebSocketCommand(CommParser):
-  def __init__(self, reader, buffer=''):
+  def __init__(self, reader, func, buffer=''):
     CommParser.__init__(self, buffer)
     self.reader=reader
     self.buffer = buffer
+    self.funcname = func
+
+  #
+  #
+  def parseHeader(self, buffer):
+    fragment = True
+    mask_data = None
+
+    val = buffer[:2]
+
+    if ord(val[0]) & 0x80 :
+      fragment = False
+
+    data_type = ord(val[0]) &0x0f
+    masked = ord(val[1]) & 0x80
+    len = ord(val[1]) & 0x7f
+    size = 2
+ 
+    if len == 126:
+      len = struct.unpack_from('H', buffer[2:])
+      size += 2
+    elif len == 127:
+      len = struct.unpack_from('L', buffer[2:])
+      size += 4
+
+    if masked :
+      mask_data = buffer[size:size+4]
+      size += 4
+
+    return [size, fragment, data_type, mask_data, len]
 
   #
   #
   #
   def checkMessage(self, buffer, offset=0, reader=None):
     try:
-      size=0
-      val = buffer[:2]
-      size += 2
-      if ord(val[0]) & 0x80 :
-        data_type = ord(val[0]) &0x0f
-        if data_type == 1:
-          masked = ord(val[1]) & 0x80
-          len = ord(val[1]) & 0x7f
+      size, fragment, data_type, mask_data, len = self.parseHeader(buffer)
 
-          if masked :
-            mask_data = buffer[size:size+4]
-            size += 4
-
-          data = buffer[size:size+len]
-          payload=""
-          for i in range(len):
-            payload += chr(ord(data[i]) ^ ord(mask_data[i % 4]))
-
-          size += len
-          print payload
-        else:
-          pass
-        return size
+      if data_type == 1:
+        payload = self.parseTextFrame(size, mask_data, len ,buffer)
+        size += len
       else:
-        pass
-
+          pass
+      return size
     except:
-      print "==="
+      print "Error in WebSocket.checkMessage"
     return 0
 
+  def parseTextFrame(self, size, mask_data, len, buffer):
+    data = buffer[size:size+len]
+    data_text =""
+    for i in range(len):
+      if mask_data :
+        data_text += chr(ord(data[i]) ^ ord(mask_data[i % 4]))
+      else:
+        data_text += chr(ord(data[i]))
+
+    print data_text
+
+    return data_text
 
 #
 #     CometManager
