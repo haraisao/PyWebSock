@@ -16,6 +16,9 @@ import threading
 import struct
 import copy
 import json
+# for WebSocket
+import base64
+from hashlib import sha1
 
 #
 # Raw Socket Adaptor
@@ -261,8 +264,9 @@ class SocketServer(SocketPort):
       conn, addr = self.socket.accept()
       self.service_id += 1
       name = self.name+":service:%d" % self.service_id
-      reader = copy.copy(self.reader)
-      newadaptor = SocketService(self, reader, name, conn, addr)
+      self.reader.parser.duplicate_reader(self.reader)
+
+      newadaptor = SocketService(self, self.reader.parser.reader, name, conn, addr)
       if flag :
         newadaptor.start()
       return newadaptor
@@ -492,6 +496,8 @@ class CommReader:
   def getParser(self):
     return self.parser
 
+
+
 #
 #  Reader class for eSEAT port
 #
@@ -500,6 +506,9 @@ class CometReader(CommReader):
     CommReader.__init__(self, None, HttpCommand(dirname))
     self.rtc = rtc
     self.dirname = dirname
+
+    self.WS_KEY = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+    self.WS_VERSION = (8, 13)
 
   def getRtc(self):
     return self.rtc
@@ -510,15 +519,19 @@ class CometReader(CommReader):
     fname = header["Http-FileName"]
 
     if cmd == "GET":
-      contents = get_file_contents(fname, self.dirname)
-      ctype = get_content_type(fname)
+      if 'Connection' in header and header['Connection'] == "Upgrade" and 'Upgrade' in header and header['Upgrade'] == "websocket":
+        self.webSocketRequest(header)
 
-      if contents is None:
-        response = self.parser.response404()
       else:
-        response = self.parser.response200(ctype, contents)
+        contents = get_file_contents(fname, self.dirname)
+        ctype = get_content_type(fname)
 
-      self.sendResponse(response)
+        if contents is None:
+          response = self.parser.response404()
+        else:
+          response = self.parser.response200(ctype, contents)
+
+        self.sendResponse(response)
 
     elif cmd == "POST":
       Data = parseData(data)
@@ -538,6 +551,35 @@ class CometReader(CommReader):
       self.sendResponse(response)
 
     return
+
+  def webSocketRequest(self, header):
+    try:
+      print "Call WebSocket Request"
+      key = header['Sec-WebSocket-Key']
+      version = header['Sec-WebSocket-Version']
+
+      if key:
+        ws_key = base64.b64decode(key.encode('utf-8'))
+        if len(ws_key) != 16:
+          raise HandshakeError("WebSocket key's length is invalid")
+
+      response_key = base64.b64encode(sha1(key.encode('utf-8') + self.WS_KEY).digest())
+
+      responseHeaders = {}
+      responseHeaders['Content-Type'] = 'text/plain'
+      responseHeaders['Upgrade'] = 'websocket'
+      responseHeaders['Connection'] = 'Upgrade'
+      responseHeaders['Sec-WebSocket-Version'] = str(version)
+      responseHeaders['Sec-WebSocket-Accept'] = response_key
+      
+      response = self.parser.response101(responseHeaders, "")
+      print response
+
+      self.parser = WebSocketCommand(self)
+      self.sendResponse(response, False)
+    except:
+      self.sendResponse(self.parser.response404())
+
 
   def cometRequest(self, data):
     if data.has_key("id") :
@@ -603,14 +645,24 @@ class CommParser:
   #
   #  skip buffer, but not implemented....
   #
-  def skipBuffer(self):
-      print "call skipBuffer"
-      return 
+  def skipBuffer(self, n=0):
+      print "call skipBuffer %d" % n
+      data = ""
+      if self.bufsize > n :
+        data = self.buffer[:n]
+        self.setBuffer(self.buffer[n:])
+      print data
+      return data
   #
   #  check message format (cmd encoded_args)
   #
   def checkMessage(self, buffer, offset=0, reader=None):
     return None
+
+  def duplicate_reader(self,rdr):
+    self.reader = copy.copy(rdr)
+    return
+
 
 #
 #  Httpd  
@@ -631,7 +683,7 @@ class HttpCommand(CommParser):
   def checkMessage(self, buffer, offset=0, reader=None):
     pos = self.parseHttpdHeader( buffer, offset)
     if pos > 0 :
-      reader.doProcess(self.header, self.data)
+      self.reader.doProcess(self.header, self.data)
       return pos
     return 0
 
@@ -684,6 +736,18 @@ class HttpCommand(CommParser):
   #
   # Generate response message
   #
+  def response101(self, header, contents=""):
+    date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
+    res  = "HTTP/1.1 101 Switching Protocols\r\n"
+    res += "Date: "+date+"\r\n"
+    for key,val in header.items():
+      res += key+": "+val+"\r\n"
+    res += "Content-Length: "+str(len(contents))+"\r\n"
+    res += "\r\n"
+    res += contents
+
+    return res
+
   def response200(self, ctype, contents):
     date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
     res  = "HTTP/1.0 200 OK\r\n"
@@ -708,6 +772,52 @@ class HttpCommand(CommParser):
     res += "Date: "+date+"\r\n"
     res += "\r\n"
     return res
+
+#
+#  WebSocket Parser
+#     CommParser <--- WebSocketCommand
+#
+class WebSocketCommand(CommParser):
+  def __init__(self, reader, buffer=''):
+    CommParser.__init__(self, buffer)
+    self.reader=reader
+    self.buffer = buffer
+
+  #
+  #
+  #
+  def checkMessage(self, buffer, offset=0, reader=None):
+    try:
+      size=0
+      val = buffer[:2]
+      size += 2
+      if ord(val[0]) & 0x80 :
+        data_type = ord(val[0]) &0x0f
+        if data_type == 1:
+          masked = ord(val[1]) & 0x80
+          len = ord(val[1]) & 0x7f
+
+          if masked :
+            mask_data = buffer[size:size+4]
+            size += 4
+
+          data = buffer[size:size+len]
+          payload=""
+          for i in range(len):
+            payload += chr(ord(data[i]) ^ ord(mask_data[i % 4]))
+
+          size += len
+          print payload
+        else:
+          pass
+        return size
+      else:
+        pass
+
+    except:
+      print "==="
+    return 0
+
 
 #
 #     CometManager
@@ -805,4 +915,10 @@ def parseData(data):
 #
 #
 def create_httpd(num=80, top="html"):
-  return SocketServer(CometReader(None), "Web", "localhost", num)
+  return SocketServer(CometReader(None, top), "Web", "localhost", num)
+
+
+if __name__ == '__main__' :
+  comm=create_httpd()
+  comm.start()
+
