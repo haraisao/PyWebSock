@@ -292,8 +292,7 @@ class SocketServer(SocketPort):
       conn, addr = self.socket.accept()
       self.service_id += 1
       name = self.name+":service:%d" % self.service_id
-      reader = self.reader.parser.duplicate_reader(self.reader)
-      reader.parser = copy.copy(self.reader.parser)
+      reader = self.reader.duplicate()
 
       newadaptor = SocketService(self, reader, name, conn, addr)
       if flag :
@@ -435,6 +434,12 @@ class CommReader:
   def setOwner(self, owner):
     self.owner = owner
 
+  def duplicate(self):
+    reader = copy.copy(self)
+    if self.parser:
+      reader.parser = copy.copy(self.parser)
+      reader.parser.reader = reader
+    return reader
   #
   #
   #
@@ -643,14 +648,10 @@ class HttpReader(CommReader):
       responseHeaders['Sec-WebSocket-Accept'] = response_key
       
       response = self.parser.response101(responseHeaders, "")
-      #print response
 
-
-      self.parser = copy.copy(self.WSParser)
-      self.parser.setFunction(func)
-      self.parser.setReader(self)
-
+      self.parser = self.WSParser.duplicate(self, func)
       self.sendResponse(response, False)
+
     except:
       self.sendResponse(self.parser.response404())
 
@@ -694,7 +695,6 @@ class HttpReader(CommReader):
     server = self.getServer()
     server.cometManager.callHandler(data['id'], data)
     return
-
 
 #
 # CommParser: parse the reveived message
@@ -753,9 +753,6 @@ class CommParser:
   #
   #
   #
-  def duplicate_reader(self,rdr):
-    self.reader = copy.copy(rdr)
-    return self.reader
 
   def getServer(self):
     if self.reader:
@@ -922,6 +919,12 @@ class WebSocketCommand(CommParser):
 
   def setFunction(self, func):
     self.funcname = func
+
+  def duplicate(self, rdr, func=""):
+    parser = copy.copy(self)
+    parser.reader = rdr
+    parser.funcname = func
+    return parser
   #
   #
   def parseHeader(self, buffer):
@@ -1054,8 +1057,8 @@ class WebSocketCommand(CommParser):
 
   def callFunction(self, msg):
     #print self.funcname
-    if self.funcname in self.__class__.__dict__:
-      return self.__class__.__dict__[self.funcname](self, msg)
+    if self.funcname in dir(self.__class__):
+      return getattr(self.__class__, self.funcname)(self, msg)
     else:
       print "No such method %s" % self.funcname
 

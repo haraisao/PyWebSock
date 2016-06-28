@@ -22,3 +22,10 @@ class FuncTest():
     else:
       print "No such method %s" % self.func
     
+class Func2(FuncTest):
+  def __init__(self, f):
+    FuncTest.__init__(self,f)
+
+  def minus2(self, v):
+    return v-2
+
