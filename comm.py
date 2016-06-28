@@ -293,6 +293,7 @@ class SocketServer(SocketPort):
       self.service_id += 1
       name = self.name+":service:%d" % self.service_id
       reader = self.reader.parser.duplicate_reader(self.reader)
+      reader.parser = copy.copy(self.reader.parser)
 
       newadaptor = SocketService(self, reader, name, conn, addr)
       if flag :
