@@ -16,8 +16,10 @@ import threading
 import struct
 import copy
 import json
+
 # for WebSocket
 import base64
+import random
 from hashlib import sha1
 
 #
@@ -26,6 +28,9 @@ from hashlib import sha1
 #   threading.Tread <--- SocketPort
 #
 class SocketPort(threading.Thread):
+  #
+  #
+  #
   def __init__(self, reader, name, host, port):
     threading.Thread.__init__(self)
     self.reader = reader
@@ -48,14 +53,23 @@ class SocketPort(threading.Thread):
     self.host = name
     return 
 
+  #
+  #
+  #
   def setPort(self, port):
     self.port = port
     return 
 
+  #
+  #
+  #
   def setClientMode(self):
     self.client_adaptor = True
     return 
 
+  #
+  #
+  #
   def setServerMode(self):
     self.client_adaptor = False
     return 
@@ -77,6 +91,7 @@ class SocketPort(threading.Thread):
   def bind(self):
     try:
       self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
       self.socket.bind((self.host, self.port))
 
     except socket.error:
@@ -157,14 +172,21 @@ class SocketPort(threading.Thread):
   #
   def start(self):
     self.mainloop = True
-    threading.Thread.start(self)
+    if self.socket :
+      threading.Thread.start(self)
 
+  #
+  #
+  #
   def run(self):
     if self.client_adaptor: 
       self.message_receiver()
     else:
       self.accept_service_loop()
 
+  #
+  #
+  #
   def remove_service(self, adaptor):
      try:
        self.service.remove(adaptor)
@@ -208,6 +230,9 @@ class SocketPort(threading.Thread):
     for s in  self.service :
       s.terminate()
 
+  #
+  #
+  #
   def close(self):
     while self.service:
       self.service.pop().close()
@@ -244,6 +269,9 @@ class SocketPort(threading.Thread):
 #  Server Adaptor
 #
 class SocketServer(SocketPort):
+  #
+  #
+  #
   def __init__(self, reader, name, host, port):
     SocketPort.__init__(self, reader, name, host, port)
     self.socket = None
@@ -319,6 +347,9 @@ class SocketServer(SocketPort):
 #  Service Adaptor
 #
 class SocketService(SocketPort):
+  #
+  #
+  #
   def __init__(self, server, reader, name, sock, addr):
     SocketPort.__init__(self, reader, name, addr[0], addr[1])
     self.socket = sock
@@ -333,6 +364,9 @@ class SocketService(SocketPort):
   def run(self):
     self.message_receiver()
 
+  #
+  #
+  #
   def getServer(self):
     return self.server_adaptor
 
@@ -370,6 +404,9 @@ Opcode={
 #  Foundmental reader class 
 #
 class CommReader:
+  #
+  #
+  #
   def __init__(self, owner=None, parser=None):
     self.buffer = ""
     self.bufsize = 0
@@ -397,6 +434,9 @@ class CommReader:
   def setOwner(self, owner):
     self.owner = owner
 
+  #
+  #
+  #
   def getServer(self):
     return  self.owner.getServer()
 
@@ -409,10 +449,16 @@ class CommReader:
     self.bufsize = len(buffer)
     self.current=0
 
+  #
+  #
+  #
   def appendBuffer(self, buffer):
     self.buffer += buffer
     self.bufsize = len(self.buffer)
 
+  #
+  #
+  #
   def skipBuffer(self, n=4, flag=1):
     self.current += n
     if flag :
@@ -420,6 +466,9 @@ class CommReader:
       self.current = 0
     return 
 
+  #
+  #
+  #
   def clearBuffer(self, n=0):
     if n > 0 :
       self.buffer = self.buffer[n:]
@@ -429,6 +478,9 @@ class CommReader:
       self.buffer = ""
       self.current = 0
 
+  #
+  #
+  #
   def checkBuffer(self):
     try:
       if len(self.buffer) > self.current :
@@ -457,6 +509,9 @@ class CommReader:
       self.owner.close()
     return
 
+  #
+  #
+  #
   def sendResponse(self, res, flag=True):
     self.response = res
     self.send(flag)
@@ -493,6 +548,9 @@ class CommReader:
       self.current =  0
     return data
 
+  #
+  #
+  #
   def getParser(self):
     return self.parser
 
@@ -501,7 +559,10 @@ class CommReader:
 #
 #  Reader class for eSEAT port
 #
-class CometReader(CommReader):
+class HttpReader(CommReader):
+  #
+  #
+  #
   def __init__(self, rtc=None, dirname="html"):
     CommReader.__init__(self, None, HttpCommand(dirname))
     self.rtc = rtc
@@ -510,9 +571,15 @@ class CometReader(CommReader):
     self.WS_KEY = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     self.WS_VERSION = (8, 13)
 
+  #
+  #
+  #
   def getRtc(self):
     return self.rtc
 
+  #
+  #
+  #
   def doProcess(self, header, data):
     self.clearResponse()
     cmd = header["Http-Command"]
@@ -552,9 +619,11 @@ class CometReader(CommReader):
 
     return
 
+  #
+  #
+  #
   def webSocketRequest(self, header, fname):
     try:
-      print "Call WebSocket Request: "+fname
       key = header['Sec-WebSocket-Key']
       version = header['Sec-WebSocket-Version']
       func = fname.split('/')[-1]
@@ -575,14 +644,16 @@ class CometReader(CommReader):
       responseHeaders['Sec-WebSocket-Accept'] = response_key
       
       response = self.parser.response101(responseHeaders, "")
-      print response
+      #print response
 
       self.parser = WebSocketCommand(self, func)
       self.sendResponse(response, False)
     except:
       self.sendResponse(self.parser.response404())
 
-
+  #
+  #
+  #
   def cometRequest(self, data):
     if data.has_key("id") :
       self.registerHandler(data)
@@ -590,6 +661,9 @@ class CometReader(CommReader):
       response = self.parser.response400()
       self.sendResponse(response)
 
+  #
+  #
+  #
   def cometTrigger(self, data):
      res = {}
      if data.has_key("id") :
@@ -602,11 +676,17 @@ class CometReader(CommReader):
      response = self.parser.response200("application/json", json.dumps(res))
      self.sendResponse(response)
 
+  #
+  #
+  #
   def registerHandler(self, data):
     server = self.getServer()
     server.cometManager.registerHandler(self, data['id'], data)
     return
 
+  #
+  #
+  #
   def callHandler(self, data):
     server = self.getServer()
     server.cometManager.callHandler(data['id'], data)
@@ -636,10 +716,15 @@ class CommParser:
     self.buffer=buffer
     self.bufsize = len(buffer)
     self.offset=0
-
+  #
+  #
+  #
   def clearBuffer(self):
     self.setBuffer("")
 
+  #
+  #
+  #
   def appendBuffer(self, buffer):
     self.buffer += buffer
     self.bufsize = len(self.buffer)
@@ -655,12 +740,16 @@ class CommParser:
         self.setBuffer(self.buffer[n:])
       print data
       return data
+
   #
   #  check message format (cmd encoded_args)
   #
   def checkMessage(self, buffer, offset=0, reader=None):
     return None
 
+  #
+  #
+  #
   def duplicate_reader(self,rdr):
     self.reader = copy.copy(rdr)
     return
@@ -671,11 +760,17 @@ class CommParser:
 #     CommParser <--- HttpCommand
 #
 class HttpCommand(CommParser):
+  #
+  #
+  #
   def __init__(self, dirname=".", buffer=''):
     CommParser.__init__(self, buffer)
     self.dirname=dirname
     self.buffer = buffer
 
+  #
+  #
+  #
   def setRootDir(self, dirname):
     self.dirname=dirname
 
@@ -780,11 +875,15 @@ class HttpCommand(CommParser):
 #     CommParser <--- WebSocketCommand
 #
 class WebSocketCommand(CommParser):
+  #
+  #
+  #
   def __init__(self, reader, func, buffer=''):
     CommParser.__init__(self, buffer)
     self.reader=reader
     self.buffer = buffer
     self.funcname = func
+    self.data=""
 
   #
   #
@@ -803,10 +902,10 @@ class WebSocketCommand(CommParser):
     size = 2
  
     if len == 126:
-      len = struct.unpack_from('H', buffer[2:])
+      len = struct.unpack_from('>H', buffer[2:])
       size += 2
     elif len == 127:
-      len = struct.unpack_from('L', buffer[2:])
+      len = struct.unpack_from('>Q', buffer[2:])
       size += 4
 
     if masked :
@@ -816,22 +915,46 @@ class WebSocketCommand(CommParser):
     return [size, fragment, data_type, mask_data, len]
 
   #
-  #
+  #  data_type 
+  #     0x00:  Continue
+  #     0x01:  Text
+  #     0x02:  Binary
+  #     0x01:  Text
+  #     0x08:  Close
+  #     0x09:  Ping
+  #     0x0a:  Pong
   #
   def checkMessage(self, buffer, offset=0, reader=None):
     try:
       size, fragment, data_type, mask_data, len = self.parseHeader(buffer)
 
-      if data_type == 1:
-        payload = self.parseTextFrame(size, mask_data, len ,buffer)
+      if data_type == 0x01:
+        self.data += self.parseTextFrame(size, mask_data, len, buffer)
         size += len
+        #
+        # call function...
+        print self.data
+        self.sendTextFrame(self.data)
+        #
+        #
+      elif data_type == 0x02:
+        pass
+      elif data_type == 0x00:
+        pass
+      elif data_type == 0x08:
+        self.sendCloseFrame()
       else:
           pass
+
+      if not fragment : self.data = ""
       return size
     except:
       print "Error in WebSocket.checkMessage"
-    return 0
 
+    return 0
+  #
+  #
+  #
   def parseTextFrame(self, size, mask_data, len, buffer):
     data = buffer[size:size+len]
     data_text =""
@@ -840,26 +963,87 @@ class WebSocketCommand(CommParser):
         data_text += chr(ord(data[i]) ^ ord(mask_data[i % 4]))
       else:
         data_text += chr(ord(data[i]))
-
-    print data_text
-
     return data_text
+  #
+  #
+  #
+  def sendTextFrame(self, msg, masked=False):
+    if masked :
+      buf = self.genMaskedTextFrame(msg)
+    else:
+      buf = self.genRawTextFrame(msg)
+    self.reader.sendResponse(buf, False)
+    return
+  #
+  #
+  def sendCloseFrame(self):
+    buf = "\x81\08\00"
+    self.reader.sendResponse(buf)
+    return
+
+  #
+  #
+  #
+  def genRawTextFrame(self, msg):
+    buf="\x81"
+    slen = len(msg)
+    if slen > 65535: 
+      buf = buf+chr(127)+struct.pack('>Q',slen)+msg
+    elif slen > 125:
+      buf = buf+chr(126)+struct.pack('>H',slen)+msg
+    else:
+      buf = buf +chr(slen) +msg
+    return buf
+  #
+  #
+  #
+  def genMaskedTextFrame(self, msg):
+    mask = ""
+    for i in range(4):
+      mask += chr(int(random.random()*256))
+    buf="\x81"
+    slen = len(msg)
+    if slen > 65535: 
+      buf = buf+chr(127 | 0x80)+struct.pack('>Q',slen)
+    elif slen > 125:
+      buf = buf+chr(126 | 0x80)+struct.pack('>H',slen)
+    else:
+      buf = buf +chr(slen | 0x80)
+
+    buf += mask
+    for i in range(slen):
+      buf += chr(ord(msg[i]) ^ ord(mask[i % 4]))
+
+    return buf
+
 
 #
 #     CometManager
 #
 class CometManager:
+  #
+  #
+  #
   def __init__(self, server):
     self.server = server
     self.long_pollings = {}
 
+  #
+  #
+  #
   def resieter(self, reader, id):
     self.long_pollings[id] = reader
 
+  #
+  #
+  #
   def registerHandler(self, reader, id, data):
     self.long_pollings[id] = reader
     return
 
+  #
+  #
+  #
   def callHandler(self, id, data):
     res = {}
     res['date'] = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
@@ -871,6 +1055,9 @@ class CometManager:
       self.response(id, res, "application/json")
     return
 
+  #
+  #
+  #
   def response(self, id, json_data, ctype="text/plain"):
     reader = self.long_pollings[id]
     if reader :
@@ -885,6 +1072,9 @@ class CometManager:
       reader.sendResponse(responsemsg)
       self.long_pollings[id] = None
 
+  #
+  #
+  #
   def response_all(self, json_data, ctype="text/plain"):
     keys = self.long_pollings.keys()
     for k in  keys :
@@ -930,6 +1120,9 @@ def get_content_type(fname):
     pass
   return ctype
 
+#
+#
+#
 def parseData(data):
   res = {}
   ar = data.split("&")
@@ -937,14 +1130,15 @@ def parseData(data):
     key, val = a.split("=")
     res[key.strip()] = val.strip()
   return res
+
 #
 #
 #
 def create_httpd(num=80, top="html"):
-  return SocketServer(CometReader(None, top), "Web", "localhost", num)
+  return SocketServer(HttpReader(None, top), "Web", "localhost", num)
 
 
 if __name__ == '__main__' :
-  comm=create_httpd()
+  comm = create_httpd(8080)
   comm.start()
 
