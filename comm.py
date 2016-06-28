@@ -292,9 +292,9 @@ class SocketServer(SocketPort):
       conn, addr = self.socket.accept()
       self.service_id += 1
       name = self.name+":service:%d" % self.service_id
-      self.reader.parser.duplicate_reader(self.reader)
+      reader = self.reader.parser.duplicate_reader(self.reader)
 
-      newadaptor = SocketService(self, self.reader.parser.reader, name, conn, addr)
+      newadaptor = SocketService(self, reader, name, conn, addr)
       if flag :
         newadaptor.start()
       return newadaptor
@@ -568,8 +568,10 @@ class HttpReader(CommReader):
     self.rtc = rtc
     self.dirname = dirname
 
+    self.WSParser = WebSocketCommand(None, None)
     self.WS_KEY = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     self.WS_VERSION = (8, 13)
+    
 
   #
   #
@@ -590,7 +592,9 @@ class HttpReader(CommReader):
         self.webSocketRequest(header, fname)
 
       else:
+        #print fname
         contents = get_file_contents(fname, self.dirname)
+        
         ctype = get_content_type(fname)
 
         if contents is None:
@@ -627,26 +631,24 @@ class HttpReader(CommReader):
       key = header['Sec-WebSocket-Key']
       version = header['Sec-WebSocket-Version']
       func = fname.split('/')[-1]
-      print func
-
-      if key:
-        ws_key = base64.b64decode(key.encode('utf-8'))
-        if len(ws_key) != 16:
-          raise HandshakeError("WebSocket key's length is invalid")
-
-      response_key = base64.b64encode(sha1(key.encode('utf-8') + self.WS_KEY).digest())
 
       responseHeaders = {}
       responseHeaders['Content-Type'] = 'text/plain'
       responseHeaders['Upgrade'] = 'websocket'
       responseHeaders['Connection'] = 'Upgrade'
       responseHeaders['Sec-WebSocket-Version'] = str(version)
+      response_key = base64.b64encode(sha1(key.encode('utf-8') + self.WS_KEY).digest())
+
       responseHeaders['Sec-WebSocket-Accept'] = response_key
       
       response = self.parser.response101(responseHeaders, "")
       #print response
 
-      self.parser = WebSocketCommand(self, func)
+
+      self.parser = copy.copy(self.WSParser)
+      self.parser.setFunction(func)
+      self.parser.setReader(self)
+
       self.sendResponse(response, False)
     except:
       self.sendResponse(self.parser.response404())
@@ -752,9 +754,37 @@ class CommParser:
   #
   def duplicate_reader(self,rdr):
     self.reader = copy.copy(rdr)
-    return
+    return self.reader
 
+  def getServer(self):
+    if self.reader:
+      return self.reader.getServer()
+    return None
 
+  def getServices(self):
+    srvr=self.getServer()
+    if srvr:
+      return srvr.service
+    return None
+
+  def getMyService(self):
+    return self.reader.owner
+
+  def getMyServiceName(self):
+    try:
+      return self.reader.owner.name
+    except:
+      print "Error in getMyServiceName()"
+      return None
+
+  def getServiceNames(self):
+    try:
+      services = self.getServices()
+      res = map(lambda n:n.name, services)
+      return res
+    except:
+      print "Error in getServiceNames()"
+      return None
 #
 #  Httpd  
 #     CommParser <--- HttpCommand
@@ -886,6 +916,12 @@ class WebSocketCommand(CommParser):
     self.data=""
 
   #
+  def setReader(self, rdr):
+    self.reader=rdr
+
+  def setFunction(self, func):
+    self.funcname = func
+  #
   #
   def parseHeader(self, buffer):
     fragment = True
@@ -933,8 +969,7 @@ class WebSocketCommand(CommParser):
         size += len
         #
         # call function...
-        print self.data
-        self.sendTextFrame(self.data)
+        self.callFunction(self.data)
         #
         #
       elif data_type == 0x02:
@@ -977,7 +1012,7 @@ class WebSocketCommand(CommParser):
   #
   #
   def sendCloseFrame(self):
-    buf = "\x81\08\00"
+    buf = "\x81\x08\x00"
     self.reader.sendResponse(buf)
     return
 
@@ -1016,6 +1051,20 @@ class WebSocketCommand(CommParser):
 
     return buf
 
+  def callFunction(self, msg):
+    #print self.funcname
+    if self.funcname in self.__class__.__dict__:
+      return self.__class__.__dict__[self.funcname](self, msg)
+    else:
+      print "No such method %s" % self.funcname
+
+  def echo(self, msg):
+    #print msg
+    if msg == "Close":
+      self.sendCloseFrame()
+    else:
+      self.sendTextFrame(msg)
+    return
 
 #
 #     CometManager
@@ -1091,6 +1140,7 @@ def get_file_contents(fname, dirname="."):
     contents = f.read()
     f.close()
   except:
+    print "ERROR!! get_file_contents [%s, %s] " % (dirname, fname)
     pass
   return contents
 
@@ -1135,10 +1185,5 @@ def parseData(data):
 #
 #
 def create_httpd(num=80, top="html"):
-  return SocketServer(HttpReader(None, top), "Web", "localhost", num)
-
-
-if __name__ == '__main__' :
-  comm = create_httpd(8080)
-  comm.start()
-
+  reader = HttpReader(None, top)
+  return SocketServer(reader, "Web", "localhost", num)

@@ -4,8 +4,11 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>WebSocket Sample</title>
-    <script type="text/javascript" src="./jquery.js"></script>
-    <script type="text/javascript" src="./jquery-ui.js"></script>
+<!--
+-->
+    <script type="text/javascript" src="./ui/jquery.js"></script>
+    <script type="text/javascript" src="./ui/jquery-ui.js"></script>
+
     <script type="text/javascript">
         // 接続先URI
         var uri = "ws://" + location.host + "/sample/json";
@@ -93,7 +96,7 @@
         function onClose(event) {
             $("[data-name='status']").text("CLOSE");
             webSocket = null;
-            setTimeout("open()", 3000);
+            //setTimeout("open()", 3000);
         }
 
         // 初期処理登録

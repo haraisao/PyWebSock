@@ -7,7 +7,7 @@
     <script type="text/javascript" src="/jquery-3.0.0.min.js"></script>
     <script type="text/javascript">
         // 接続先URI
-        var uri = "ws://" + location.host + "/ws/chat";
+        var uri = "ws://" + location.host + "/ws/echo";
 
         // WebSocketオブジェクト
         var webSocket = null;
@@ -56,13 +56,7 @@
         function onClose(event) {
             chat("切断しました。3秒後に再接続します。(" + event.code + ")");
             webSocket = null;
-/*
-            try_count += 1;
-            if(try_count < 3){
-              console.log(try_count);
-              setTimeout("open()", 3000);
-            }
-*/
+
         }
 
         // キー押下時

@@ -1,0 +1,27 @@
+threading.Tread <--- SocketPort  <--+-- SocketServer  self.service に現在のSocketServiceを保持
+                                    +-- SocketService
+　　　　　　　　　　　　　　　　　　　　　　　self.readerにReaderのコピーを保持
+　　　　　　　　　　　　　　　　　　　　　　　getServer()　でSockServerを取得可能
+　　　　　　　　　　　　　　　　　　　　　　　コンストラクタでself.reader.setOwner(self)を呼び出している！
+
+CommReader <---- HttpReader
+　　　　　　　　　 self.ownerにSocketServiceを保持
+　　　　　　　　　 getServer()でSocketServerを取得可能
+
+CommParser <--+-- HttpCommand
+              +-- WebSocketCommand
+　　　　　　　　　　self.readerにHttpReaderを保持
+CometManager
+
+
+
+SocketServer
+  self.socket
+  self.service = []
+  self.service_id = 0
+  self.mainloop = False
+  self.server_adaptor = None
+  self.setServerMode()
+  self.cometManager
+
+
