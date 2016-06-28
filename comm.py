@@ -215,6 +215,7 @@ class SocketPort(threading.Thread):
         self.reader.parse(data)
 
       elif data is None :
+        self.reader.checkBuffer()
         pass
 
       else :
@@ -497,6 +498,7 @@ class CommReader:
           return False
         self.buffer = self.buffer[res:]
         self.current = 0
+        return True
     except:
       print "ERR in checkBuffer"
       self.buffer=""
