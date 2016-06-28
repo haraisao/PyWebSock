@@ -272,7 +272,7 @@ class SocketServer(SocketPort):
   #
   #
   #
-  def __init__(self, reader, name, host, port):
+  def __init__(self, reader, name, host, port, debug=False):
     SocketPort.__init__(self, reader, name, host, port)
     self.socket = None
     self.service = []
@@ -282,6 +282,7 @@ class SocketServer(SocketPort):
     self.server_adaptor = None
     self.setServerMode()
     self.cometManager = CometManager(self)
+    self.debug_mode = debug
     self.bind()
 
   #
@@ -339,6 +340,7 @@ class SocketServer(SocketPort):
   #
   def remove_service(self, adaptor):
      try:
+       if self.debug_mode :  print "Terminate Service %s" % adaptor.name
        self.service.remove(adaptor)
      except:
        pass
@@ -700,9 +702,9 @@ class HttpReader(CommReader):
 # CommParser: parse the reveived message
 #
 class CommParser:
-  def __init__(self, buffer, rdr=None):
-    self.buffer=buffer
-    self.bufsize = len(buffer)
+  def __init__(self, buff, rdr=None):
+    self.buffer=buff
+    self.bufsize = len(buff)
     self.reader = rdr
 
     self.offset=0
@@ -714,10 +716,10 @@ class CommParser:
   #
   #  for buffer
   #
-  def setBuffer(self, buffer):
+  def setBuffer(self, buff):
     if self.buffer : del self.buffer
-    self.buffer=buffer
-    self.bufsize = len(buffer)
+    self.buffer=buff
+    self.bufsize = len(buff)
     self.offset=0
   #
   #
@@ -728,9 +730,9 @@ class CommParser:
   #
   #
   #
-  def appendBuffer(self, buffer):
-    self.buffer += buffer
-    self.bufsize = len(self.buffer)
+  def appendBuffer(self, buff):
+    self.buffer += buff
+    self.bufsize = len(self.buff)
 
   #
   #  skip buffer, but not implemented....
@@ -747,12 +749,14 @@ class CommParser:
   #
   #  check message format (cmd encoded_args)
   #
-  def checkMessage(self, buffer, offset=0, reader=None):
+  def checkMessage(self, buff, offset=0, reader=None):
     return None
 
   #
   #
   #
+  def setReader(self, rdr):
+    self.reader=rdr
 
   def getServer(self):
     if self.reader:
@@ -794,7 +798,6 @@ class HttpCommand(CommParser):
   def __init__(self, dirname=".", buffer=''):
     CommParser.__init__(self, buffer)
     self.dirname=dirname
-    self.buffer = buffer
 
   #
   #
@@ -805,8 +808,8 @@ class HttpCommand(CommParser):
   #
   #
   #
-  def checkMessage(self, buffer, offset=0, reader=None):
-    pos = self.parseHttpdHeader( buffer, offset)
+  def checkMessage(self, buff, offset=0, reader=None):
+    pos = self.parseHttpdHeader( buff, offset)
     if pos > 0 :
       self.reader.doProcess(self.header, self.data)
       return pos
@@ -815,16 +818,16 @@ class HttpCommand(CommParser):
   #
   #
   #
-  def parseHttpdHeader(self, buffer, offset=0):
+  def parseHttpdHeader(self, buff, offset=0):
     self.header = {}
     self.data = ""
 
-    pos =  buffer[offset:].find("\r\n\r\n")
+    pos =  buff[offset:].find("\r\n\r\n")
 
     if pos > 0:
       pos += offset + 4
-      self.headerMsg = buffer[offset:pos]
-      self.buffer = buffer[pos:]
+      self.headerMsg = buff[offset:pos]
+      self.buffer = buff[pos:]
 
       header = self.headerMsg.split("\r\n")
       cmds = header[0].split(' ')
@@ -906,20 +909,18 @@ class WebSocketCommand(CommParser):
   #
   #
   #
-  def __init__(self, reader, func, buffer=''):
-    CommParser.__init__(self, buffer)
-    self.reader=reader
-    self.buffer = buffer
+  def __init__(self, reader, func, buff=''):
+    CommParser.__init__(self, buff, reader)
     self.funcname = func
     self.data=""
-
   #
-  def setReader(self, rdr):
-    self.reader=rdr
-
+  #
+  #
   def setFunction(self, func):
     self.funcname = func
-
+  #
+  #
+  #
   def duplicate(self, rdr, func=""):
     parser = copy.copy(self)
     parser.reader = rdr
@@ -927,32 +928,33 @@ class WebSocketCommand(CommParser):
     return parser
   #
   #
-  def parseHeader(self, buffer):
+  #
+  def parseHeader(self, buff):
     fragment = True
     mask_data = None
 
-    val = buffer[:2]
+    val = buff[:2]
 
     if ord(val[0]) & 0x80 :
       fragment = False
 
     data_type = ord(val[0]) &0x0f
     masked = ord(val[1]) & 0x80
-    len = ord(val[1]) & 0x7f
+    buflen = ord(val[1]) & 0x7f
     size = 2
  
-    if len == 126:
-      len = struct.unpack_from('>H', buffer[2:])
+    if buflen == 126:
+      buflen = struct.unpack_from('>H', buff[2:])[0]
       size += 2
-    elif len == 127:
-      len = struct.unpack_from('>Q', buffer[2:])
-      size += 4
+    elif buflen == 127:
+      buflen = struct.unpack_from('>Q', buff[2:])[0]
+      size += 8
 
     if masked :
-      mask_data = buffer[size:size+4]
+      mask_data = buff[size:size+4]
       size += 4
 
-    return [size, fragment, data_type, mask_data, len]
+    return [size, fragment, data_type, mask_data, buflen]
 
   #
   #  data_type 
@@ -964,28 +966,35 @@ class WebSocketCommand(CommParser):
   #     0x09:  Ping
   #     0x0a:  Pong
   #
-  def checkMessage(self, buffer, offset=0, reader=None):
+  def checkMessage(self, buff, offset=0, reader=None):
     try:
-      size, fragment, data_type, mask_data, len = self.parseHeader(buffer)
+      size, fragment, data_type, mask_data, datalen = self.parseHeader(buff)
+      if datalen > len(buff) : return 0
 
       if data_type == 0x01:
-        self.data += self.parseTextFrame(size, mask_data, len, buffer)
-        size += len
+        self.data += self.parseDataFrame(size, mask_data, datalen, buff)
         #
         # call function...
         self.callFunction(self.data)
-        #
-        #
+
       elif data_type == 0x02:
-        pass
+        self.data += self.parseDataFrame(size, mask_data, datalen, buff)
+        #
+        # call function...
+        self.callFunction(self.data)
+
       elif data_type == 0x00:
         pass
+
       elif data_type == 0x08:
+        print "Catch Close Msg"
         self.sendCloseFrame()
+
       else:
           pass
 
       if not fragment : self.data = ""
+      size += datalen
       return size
     except:
       print "Error in WebSocket.checkMessage"
@@ -994,15 +1003,16 @@ class WebSocketCommand(CommParser):
   #
   #
   #
-  def parseTextFrame(self, size, mask_data, len, buffer):
-    data = buffer[size:size+len]
+  def parseDataFrame(self, size, mask_data, data_len, buff):
+    data = buff[size:size+data_len]
     data_text =""
-    for i in range(len):
+    for i in range(data_len):
       if mask_data :
         data_text += chr(ord(data[i]) ^ ord(mask_data[i % 4]))
       else:
         data_text += chr(ord(data[i]))
     return data_text
+
   #
   #
   #
@@ -1013,6 +1023,7 @@ class WebSocketCommand(CommParser):
       buf = self.genRawTextFrame(msg)
     self.reader.sendResponse(buf, False)
     return
+  #
   #
   #
   def sendCloseFrame(self):
@@ -1055,6 +1066,9 @@ class WebSocketCommand(CommParser):
 
     return buf
 
+  #
+  # call own method
+  #
   def callFunction(self, msg):
     #print self.funcname
     if self.funcname in dir(self.__class__):
@@ -1062,8 +1076,10 @@ class WebSocketCommand(CommParser):
     else:
       print "No such method %s" % self.funcname
 
+  #
+  # Sample Function...
+  #
   def echo(self, msg):
-    #print msg
     if msg == "Close":
       self.sendCloseFrame()
     else:

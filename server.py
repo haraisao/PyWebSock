@@ -24,10 +24,16 @@ class ws_sample(comm.WebSocketCommand):
           pass
     return
 
+  def blob(self, msg):
+    res="Upload: %d bytes" % len(msg)
+    print res
+    self.sendTextFrame(res)
+    return
+
 
 if __name__ == '__main__' :
   reader = comm.HttpReader(None, "html")
   reader.WSParser = ws_sample(reader)
-  srv= comm.SocketServer(reader, "Web", "localhost", 8080)
+  srv= comm.SocketServer(reader, "Web", "localhost", 8080, True)
   srv.start()
 
