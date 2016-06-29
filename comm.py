@@ -211,12 +211,8 @@ class SocketPort(threading.Thread):
       if data  == -1:
         self.terminate()
 
-      elif data :
+      elif data or data is None:
         self.reader.parse(data)
-
-      elif data is None :
-        self.reader.checkBuffer()
-        pass
 
       else :
         print "Umm...:",self.name
@@ -428,7 +424,7 @@ class CommReader:
   def parse(self, data):
     if self.debug:
       print data
-    self.appendBuffer( data )
+    if data : self.appendBuffer( data )
     self.checkBuffer()
 
   #
