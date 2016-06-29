@@ -514,7 +514,12 @@ class CommReader:
     if flag:
       self.owner.close()
     return
-
+  #
+  #
+  #
+  def closeSession(self):
+    self.owner.close()
+    return
   #
   #
   #
@@ -990,8 +995,8 @@ class WebSocketCommand(CommParser):
         pass
 
       elif data_type == 0x08:  # Close
-        print "Catch Close Msg"
-        self.sendCloseFrame()
+        print "Catch Closeing Frame"
+        self.reader.closeSession()
 
       elif data_type == 0x09:  # Ping
         print "Catch PingFrame"
