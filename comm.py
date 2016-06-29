@@ -407,7 +407,7 @@ class CommReader:
   #
   #
   def __init__(self, owner=None, parser=None):
-    self.buffer = ""
+    self._buffer = ""
     self.bufsize = 0
     self.current=0
     self.response=""
@@ -448,18 +448,18 @@ class CommReader:
   #
   #  Buffer
   #
-  def setBuffer(self, buffer):
-    if self.buffer : del self.buffer
-    self.buffer=buffer
-    self.bufsize = len(buffer)
+  def setBuffer(self, buff):
+    if self._buffer : del self._buffer
+    self._buffer=buff
+    self.bufsize = len(buff)
     self.current=0
 
   #
   #
   #
-  def appendBuffer(self, buffer):
-    self.buffer += buffer
-    self.bufsize = len(self.buffer)
+  def appendBuffer(self, buff):
+    self._buffer += buff
+    self.bufsize = len(self._buffer)
 
   #
   #
@@ -467,7 +467,7 @@ class CommReader:
   def skipBuffer(self, n=4, flag=1):
     self.current += n
     if flag :
-      self.buffer = self.buffer[self.current:]
+      self._buffer = self._buffer[self.current:]
       self.current = 0
     return 
 
@@ -476,11 +476,11 @@ class CommReader:
   #
   def clearBuffer(self, n=0):
     if n > 0 :
-      self.buffer = self.buffer[n:]
+      self._buffer = self._buffer[n:]
       self.current = 0
     else:
-      if self.buffer : del self.buffer
-      self.buffer = ""
+      if self._buffer : del self._buffer
+      self._buffer = ""
       self.current = 0
 
   #
@@ -488,16 +488,16 @@ class CommReader:
   #
   def checkBuffer(self):
     try:
-      if len(self.buffer) > self.current :
-        res = self.parser.checkMessage(self.buffer, self.current, self)
+      if len(self._buffer) > self.current :
+        res = self.parser.checkMessage(self._buffer, self.current, self)
         if res == 0:
           return False
-        self.buffer = self.buffer[res:]
+        self._buffer = self._buffer[res:]
         self.current = 0
         return True
     except:
       print "ERR in checkBuffer"
-      self.buffer=""
+      self._buffer=""
       pass
 
     return False
@@ -546,11 +546,11 @@ class CommReader:
     if self.bufsize < end :
       end = self.bufsize
 
-    data = self.buffer[start:end]
+    data = self._buffer[start:end]
     self.current = end
 
     if  delFlag :
-      self.buffer =  self.buffer[end:]
+      self._buffer =  self._buffer[end:]
       self.current =  0
     return data
 
@@ -701,7 +701,7 @@ class HttpReader(CommReader):
 #
 class CommParser:
   def __init__(self, buff, rdr=None):
-    self.buffer=buff
+    self._buffer=buff
     self.bufsize = len(buff)
     self.reader = rdr
 
@@ -715,8 +715,8 @@ class CommParser:
   #  for buffer
   #
   def setBuffer(self, buff):
-    if self.buffer : del self.buffer
-    self.buffer=buff
+    if self._buffer : del self._buffer
+    self._buffer=buff
     self.bufsize = len(buff)
     self.offset=0
   #
@@ -729,7 +729,7 @@ class CommParser:
   #
   #
   def appendBuffer(self, buff):
-    self.buffer += buff
+    self._buffer += buff
     self.bufsize = len(self.buff)
 
   #
@@ -739,8 +739,8 @@ class CommParser:
       print "call skipBuffer %d" % n
       data = ""
       if self.bufsize > n :
-        data = self.buffer[:n]
-        self.setBuffer(self.buffer[n:])
+        data = self._buffer[:n]
+        self.setBuffer(self._buffer[n:])
       print data
       return data
 
@@ -793,8 +793,8 @@ class HttpCommand(CommParser):
   #
   #
   #
-  def __init__(self, dirname=".", buffer=''):
-    CommParser.__init__(self, buffer)
+  def __init__(self, dirname=".", buff=''):
+    CommParser.__init__(self, buff)
     self.dirname=dirname
 
   #
@@ -825,7 +825,7 @@ class HttpCommand(CommParser):
     if pos > 0:
       pos += offset + 4
       self.headerMsg = buff[offset:pos]
-      self.buffer = buff[pos:]
+      self._buffer = buff[pos:]
 
       header = self.headerMsg.split("\r\n")
       cmds = header[0].split(' ')
@@ -843,7 +843,7 @@ class HttpCommand(CommParser):
       if self.header.has_key("Content-Length") :
         contentLen = int(self.header["Content-Length"])
 	pos += contentLen
-        self.data = self.buffer[:contentLen]
+        self.data = self._buffer[:contentLen]
 
       return pos
     return 0
@@ -910,6 +910,7 @@ class WebSocketCommand(CommParser):
   def __init__(self, reader, func, buff=''):
     CommParser.__init__(self, buff, reader)
     self.funcname = func
+    self.current_data_frame = 0x01
     self.data=""
   #
   #
@@ -969,24 +970,35 @@ class WebSocketCommand(CommParser):
       size, fragment, data_type, mask_data, datalen = self.parseHeader(buff)
       if datalen > len(buff) : return 0
 
-      if data_type == 0x01:
+      if data_type == 0x01:  # Text
+        if self.current_data_frame == data_type: self.data=""
         self.data += self.parseDataFrame(size, mask_data, datalen, buff)
         #
         # call function...
-        self.callFunction(self.data)
+        if not fragment : self.callFunction(self.data)
 
-      elif data_type == 0x02:
+      elif data_type == 0x02:  # Binary
+        if self.current_data_frame == data_type: self.data=""
         self.data += self.parseDataFrame(size, mask_data, datalen, buff)
         #
         # call function...
-        self.callFunction(self.data)
+        if not fragment : self.callFunction(self.data)
 
-      elif data_type == 0x00:
+      elif data_type == 0x00:  # Continue
+        self.data += self.parseDataFrame(size, mask_data, datalen, buff)
+        if not fragment : self.callFunction(self.data)
         pass
 
-      elif data_type == 0x08:
+      elif data_type == 0x08:  # Close
         print "Catch Close Msg"
         self.sendCloseFrame()
+
+      elif data_type == 0x09:  # Ping
+        print "Catch PingFrame"
+        self.sendPongFrame()
+
+      elif data_type == 0x0a:  # Pong
+        print "Catch PongFrame"
 
       else:
           pass
@@ -1026,6 +1038,22 @@ class WebSocketCommand(CommParser):
   #
   def sendCloseFrame(self):
     buf = "\x81\x08\x00"
+    self.reader.sendResponse(buf)
+    return
+
+  #
+  #
+  #
+  def sendPingFrame(self):
+    buf = "\x81\x09\x00"
+    self.reader.sendResponse(buf)
+    return
+
+  #
+  #
+  #
+  def sendPongFrame(self):
+    buf = "\x81\x0a\x00"
     self.reader.sendResponse(buf)
     return
 
