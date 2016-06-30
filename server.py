@@ -16,8 +16,8 @@ class ws_sample(comm.WebSocketCommand):
   def json(self, msg):
     services = self.getServices()
     for srv in services:
-      ws = srv.reader.parser
-      if ws.__class__ == ws_sample:
+      ws = srv.reader.command
+      if isinstance(ws,WebSocketCommand):
         if ws != self:
           ws.sendTextFrame(msg)
         else:
@@ -30,10 +30,17 @@ class ws_sample(comm.WebSocketCommand):
     self.sendTextFrame(res)
     return
 
+  def rpc(self, msg):
+    res="alert('%s');" % msg
+    print res
+    self.sendTextFrame(res)
+    return
+
+
 
 if __name__ == '__main__' :
   reader = comm.HttpReader(None, "html")
-  reader.WSParser = ws_sample(reader)
+  reader.WSCommand = ws_sample(reader)
   srv = comm.SocketServer(reader, "Web", "localhost", 8080, False)
   srv.start()
 

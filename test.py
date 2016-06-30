@@ -1,3 +1,5 @@
+#
+#
 class FuncTest():
   def __init__(self, f):
     self.func = f
@@ -21,7 +23,8 @@ class FuncTest():
       return mth(self, args)
     else:
       print "No such method %s" % self.func
-    
+#
+#    
 class Func2(FuncTest):
   def __init__(self, f):
     FuncTest.__init__(self,f)
@@ -29,3 +32,5 @@ class Func2(FuncTest):
   def minus2(self, v):
     return v-2
 
+  def super(self):
+    return super(Func2, self)

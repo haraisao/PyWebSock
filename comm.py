@@ -40,7 +40,7 @@ class SocketPort(threading.Thread):
     self.host = host
     self.port = port
     self.socket = None
-    self.service = []
+    self.com_ports = []
     self.service_id = 0
     self.client_adaptor = True
     self.server_adaptor = None
@@ -69,8 +69,8 @@ class SocketPort(threading.Thread):
     self.server_adaptor = srv
     return 
 
-  def getParser(self):
-    return self.reader.parser
+  def getCommand(self):
+    return self.reader.command
 
   #
   # Bind scoket 
@@ -173,7 +173,7 @@ class SocketPort(threading.Thread):
   #
   def remove_service(self, adaptor):
      try:
-       self.service.remove(adaptor)
+       self.com_ports.remove(adaptor)
      except:
        pass
 
@@ -202,21 +202,21 @@ class SocketPort(threading.Thread):
         print "Umm...:",self.name
         print data
 
-    print "Read thread terminated:",self.name
+    if self.debug : print "Read thread terminated:",self.name
 
   #
   #  close socket
   #
   def close_service(self):
-    for s in  self.service :
+    for s in  self.com_ports :
       s.terminate()
 
   #
   #  close socket (lower operation)
   #
   def close(self):
-    while self.service:
-      self.service.pop().close()
+    while self.com_ports:
+      self.com_ports.pop().close()
 
     if self.server_adaptor:
       self.server_adaptor.remove_service(self)
@@ -322,10 +322,19 @@ class SocketServer(SocketPort):
   def remove_service(self, adaptor):
      try:
        if self.debug :  print "Terminate Service %s" % adaptor.name
-       self.service.remove(adaptor)
+       self.com_ports.remove(adaptor)
      except:
        pass
 
+  def getServices(self, klass):
+    res=[]
+    try:
+      for x in self.com_ports:
+        if isinstance(x.reader.command, klass) : res.append(x)
+    except:
+      pass
+    return res
+   
 #
 #  Service Adaptor
 #
@@ -337,7 +346,7 @@ class SocketService(SocketPort):
     SocketPort.__init__(self, reader, name, addr[0], addr[1])
     self.socket = sock
     self.server_adaptor = server
-    server.service.append(self)
+    server.com_ports.append(self)
 
   #
   # Threading...
@@ -388,16 +397,16 @@ class CommReader:
   #
   # Constructor
   #
-  def __init__(self, owner=None, parser=None):
+  def __init__(self, owner=None, command=None):
     self._buffer = ""
     self.bufsize = 0
     self.current=0
     self.response=""
     self.owner = owner
-    if parser is None:
-      self.parser = CommParser('')
+    if command is None:
+      self.command = CommCommand('')
     else:
-      self.parser = parser
+      self.command = command
     self.debug = False
 
   #
@@ -424,8 +433,8 @@ class CommReader:
   def getServer(self):
     return  self.owner.getServer()
 
-  def getParser(self):
-    return self.parser
+  def getCommand(self):
+    return self.command
 
 
  #
@@ -433,9 +442,9 @@ class CommReader:
  #
   def duplicate(self):
     reader = copy.copy(self)
-    if self.parser:
-      reader.parser = copy.copy(self.parser)
-      reader.parser.reader = reader
+    if self.command:
+      reader.command = copy.copy(self.command)
+      reader.command.reader = reader
     return reader
 
   #
@@ -467,7 +476,7 @@ class CommReader:
   def checkBuffer(self):
     try:
       if len(self._buffer) > self.current :
-        res = self.parser.checkMessage(self._buffer, self.current, self)
+        res = self.command.checkMessage(self._buffer, self.current, self)
         if res == 0:
           return False
         self._buffer = self._buffer[res:]
@@ -551,7 +560,7 @@ class HttpReader(CommReader):
     self.rtc = rtc
     self.dirname = dirname
 
-    self.WSParser = WebSocketCommand(None, None)
+    self.WSCommand = WebSocketCommand(None, None)
     self.WS_KEY = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     self.WS_VERSION = (8, 13)
     
@@ -581,9 +590,9 @@ class HttpReader(CommReader):
         ctype = get_content_type(fname)
 
         if contents is None:
-          response = self.parser.response404()
+          response = self.command.response404()
         else:
-          response = self.parser.response200(ctype, contents)
+          response = self.command.response200(ctype, contents)
 
         self.sendResponse(response)
 
@@ -598,10 +607,10 @@ class HttpReader(CommReader):
 
       else:
 	  contents = "Hello, No such action defined"
-          response = self.parser.response200("text/plain", contents)
+          response = self.command.response200("text/plain", contents)
           self.sendResponse(response)
     else:
-      response = self.parser.response400()
+      response = self.command.response400()
       self.sendResponse(response)
 
     return
@@ -624,13 +633,13 @@ class HttpReader(CommReader):
 
       responseHeaders['Sec-WebSocket-Accept'] = response_key
       
-      response = self.parser.response101(responseHeaders, "")
+      response = self.command.response101(responseHeaders, "")
 
-      self.parser = self.WSParser.duplicate(self, func)
+      self.command = self.WSCommand.duplicate(self, func)
       self.sendResponse(response, False)
 
     except:
-      self.sendResponse(self.parser.response404())
+      self.sendResponse(self.command.response404())
 
   ###############
   # for COMET
@@ -639,7 +648,7 @@ class HttpReader(CommReader):
     if data.has_key("id") :
       self.registerHandler(data)
     else:
-      response = self.parser.response400()
+      response = self.command.response400()
       self.sendResponse(response)
 
   #
@@ -654,7 +663,7 @@ class HttpReader(CommReader):
        res["result"] = "ERROR"
 
      res["date"] = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
-     response = self.parser.response200("application/json", json.dumps(res))
+     response = self.command.response200("application/json", json.dumps(res))
      self.sendResponse(response)
 
   #
@@ -674,9 +683,9 @@ class HttpReader(CommReader):
     return
 
 ############################################
-# CommParser: parse the reveived message
+# CommCommand: parse the reveived message
 #
-class CommParser:
+class CommCommand:
   #
   #  Costrutor
   #
@@ -736,7 +745,7 @@ class CommParser:
   def getServices(self):
     srvr=self.getServer()
     if srvr:
-      return srvr.service
+      return srvr.com_ports
     return None
 
   def getMyService(self):
@@ -759,14 +768,14 @@ class CommParser:
       return None
 #############################################
 #  Httpd  
-#     CommParser <--- HttpCommand
+#     CommCommand <--- HttpCommand
 #
-class HttpCommand(CommParser):
+class HttpCommand(CommCommand):
   #
   # Constructor
   #
   def __init__(self, dirname=".", buff=''):
-    CommParser.__init__(self, buff)
+    CommCommand.__init__(self, buff)
     self.dirname=dirname
 
   #
@@ -872,31 +881,31 @@ class HttpCommand(CommParser):
     return res
 
 ################################################
-#  WebSocket Parser
-#     CommParser <--- WebSocketCommand
+#  WebSocket Command
+#     CommCommand <--- WebSocketCommand
 #
-class WebSocketCommand(CommParser):
+class WebSocketCommand(CommCommand):
   #
   # Constructor
   #
   def __init__(self, reader, func, buff=''):
-    CommParser.__init__(self, buff, reader)
-    self.funcname = func
+    CommCommand.__init__(self, buff, reader)
+    self.func_name = func
     self.current_data_frame = 0x01
     self.data=""
   #
   #
   #
   def setFunction(self, func):
-    self.funcname = func
+    self.func_name = func
   #
   #
   #
   def duplicate(self, rdr, func=""):
-    parser = copy.copy(self)
-    parser.reader = rdr
-    parser.funcname = func
-    return parser
+    command = copy.copy(self)
+    command.reader = rdr
+    command.func_name = func
+    return command
   #
   #
   #
@@ -1068,11 +1077,11 @@ class WebSocketCommand(CommParser):
   # call own method
   #
   def callFunction(self, msg):
-    #print self.funcname
-    if self.funcname in dir(self.__class__):
-      return getattr(self.__class__, self.funcname)(self, msg)
+    #print self.func_name
+    if self.func_name in dir(self.__class__):
+      return getattr(self.__class__, self.func_name)(self, msg)
     else:
-      print "No such method %s" % self.funcname
+      print "No such method %s" % self.func_name
 
   #
   # Sample Function...
@@ -1135,7 +1144,7 @@ class CometManager:
 	json_data['result'] = ""
 
       contents = json.dumps(json_data)
-      responsemsg = reader.parser.response200(ctype, contents)
+      responsemsg = reader.command.response200(ctype, contents)
       reader.sendResponse(responsemsg)
       self.long_pollings[id] = None
 
