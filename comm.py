@@ -2,7 +2,7 @@
 #  PyWebScok Library
 #  Communication Adaptor for WebSocket
 #
-#   Copyright(C) 2015, Isao Hara, AIST
+#   Copyright(C) 2015, Isao Hara, AIST, All Right Reserved
 #   Release under the MIT License.
 #
 
@@ -73,7 +73,7 @@ class SocketPort(threading.Thread):
     return self.reader.command
 
   #
-  # Bind scoket 
+  # Bind socket 
   #
   def bind(self):
     try:
