@@ -34,6 +34,6 @@ class ws_sample(comm.WebSocketCommand):
 if __name__ == '__main__' :
   reader = comm.HttpReader(None, "html")
   reader.WSParser = ws_sample(reader)
-  srv= comm.SocketServer(reader, "Web", "localhost", 8080, False)
+  srv = comm.SocketServer(reader, "Web", "localhost", 8080, False)
   srv.start()
 

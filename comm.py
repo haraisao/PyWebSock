@@ -29,7 +29,7 @@ from hashlib import sha1
 #
 class SocketPort(threading.Thread):
   #
-  #
+  # Contsructor
   #
   def __init__(self, reader, name, host, port):
     threading.Thread.__init__(self)
@@ -47,46 +47,33 @@ class SocketPort(threading.Thread):
     self.mainloop = False
     self.debug = False
   #
-  #
+  #  Set values...
   #
   def setHost(self, name):
     self.host = name
     return 
 
-  #
-  #
-  #
   def setPort(self, port):
     self.port = port
     return 
 
-  #
-  #
-  #
   def setClientMode(self):
     self.client_adaptor = True
     return 
 
-  #
-  #
-  #
   def setServerMode(self):
     self.client_adaptor = False
     return 
 
-  #
-  #
-  #
   def setServer(self, srv):
     self.server_adaptor = srv
     return 
-  #
-  #
-  #
+
   def getParser(self):
     return self.reader.parser
+
   #
-  # Bind
+  # Bind scoket 
   #
   def bind(self):
     try:
@@ -146,7 +133,7 @@ class SocketPort(threading.Thread):
       return -1
 
   #
-  # Receive
+  # Receive data
   #
   def receive_data(self, bufsize=8192, timeout=1.0):
     data = None
@@ -175,9 +162,6 @@ class SocketPort(threading.Thread):
     if self.socket :
       threading.Thread.start(self)
 
-  #
-  #
-  #
   def run(self):
     if self.client_adaptor: 
       self.message_receiver()
@@ -185,7 +169,7 @@ class SocketPort(threading.Thread):
       self.accept_service_loop()
 
   #
-  #
+  #  Manage each service
   #
   def remove_service(self, adaptor):
      try:
@@ -194,7 +178,7 @@ class SocketPort(threading.Thread):
        pass
 
   #
-  #
+  #  Event loop: this metho should be overwrite by suceessing classes
   #
   def accept_service_loop(self, lno=5, timeout=1.0):
     print "No accept_service_loop defined"
@@ -218,7 +202,7 @@ class SocketPort(threading.Thread):
         print "Umm...:",self.name
         print data
 
-#    print "Read thread terminated:",self.name
+    print "Read thread terminated:",self.name
 
   #
   #  close socket
@@ -228,7 +212,7 @@ class SocketPort(threading.Thread):
       s.terminate()
 
   #
-  #
+  #  close socket (lower operation)
   #
   def close(self):
     while self.service:
@@ -262,28 +246,24 @@ class SocketPort(threading.Thread):
       print "Socket error in send"
       self.close()
 
-#
+############################################
 #  Server Adaptor
+#     SocketPort <--- SocketServer
 #
 class SocketServer(SocketPort):
   #
-  #
+  # Constructor
   #
   def __init__(self, reader, name, host, port, debug=False):
     SocketPort.__init__(self, reader, name, host, port)
-    self.socket = None
-    self.service = []
-    self.service_id = 0
-    self.mainloop = False
-    self.debug = False
-    self.server_adaptor = None
+    self.debug = debug
+
     self.setServerMode()
     self.cometManager = CometManager(self)
-    self.debug_mode = debug
     self.bind()
 
   #
-  # 
+  # Accept new request, create a service 
   #
   def accept_service(self, flag=True):
     try:
@@ -298,11 +278,15 @@ class SocketServer(SocketPort):
       return newadaptor
 
     except:
-#      print "ERROR in accept_service"
+      print "ERROR in accept_service"
       pass
 
     return None
 
+  #
+  #  Wait request from a client 
+  #      [Overwrite super's method]
+  #
   def accept_service_loop(self, lno=5, timeout=1.0):
     print "Wait for accept: %s(%s:%d)" % (self.name, self.host, self.port)
     self.socket.listen(lno)
@@ -327,17 +311,17 @@ class SocketServer(SocketPort):
     return self
 
   #
-  #
+  #  Thread operations....
   #
   def run(self):
     self.accept_service_loop()
 
   #
-  #
+  # 
   #
   def remove_service(self, adaptor):
      try:
-       if self.debug_mode :  print "Terminate Service %s" % adaptor.name
+       if self.debug :  print "Terminate Service %s" % adaptor.name
        self.service.remove(adaptor)
      except:
        pass
@@ -347,18 +331,16 @@ class SocketServer(SocketPort):
 #
 class SocketService(SocketPort):
   #
-  #
+  # Constructor
   #
   def __init__(self, server, reader, name, sock, addr):
     SocketPort.__init__(self, reader, name, addr[0], addr[1])
     self.socket = sock
-    self.mainloop = False
     self.server_adaptor = server
-    self.debug = False
     server.service.append(self)
 
   #
-  #
+  # Threading...
   #
   def run(self):
     self.message_receiver()
@@ -370,7 +352,7 @@ class SocketService(SocketPort):
     return self.server_adaptor
 
 #
-#  Commands 
+#  Commands (Comet)
 #
 CloseCodeNum={
      'Normal':1000,
@@ -404,7 +386,7 @@ Opcode={
 #
 class CommReader:
   #
-  #
+  # Constructor
   #
   def __init__(self, owner=None, parser=None):
     self._buffer = ""
@@ -433,37 +415,36 @@ class CommReader:
   def setOwner(self, owner):
     self.owner = owner
 
-  def duplicate(self):
-    reader = copy.copy(self)
-    if self.parser:
-      reader.parser = copy.copy(self.parser)
-      reader.parser.reader = reader
-    return reader
-  #
-  #
-  #
-  def getServer(self):
-    return  self.owner.getServer()
-
-  #
-  #  Buffer
-  #
   def setBuffer(self, buff):
     if self._buffer : del self._buffer
     self._buffer=buff
     self.bufsize = len(buff)
     self.current=0
 
+  def getServer(self):
+    return  self.owner.getServer()
+
+  def getParser(self):
+    return self.parser
+
+
+ #
+ #  duplicate...
+ #
+  def duplicate(self):
+    reader = copy.copy(self)
+    if self.parser:
+      reader.parser = copy.copy(self.parser)
+      reader.parser.reader = reader
+    return reader
+
   #
-  #
+  # Buffer operations
   #
   def appendBuffer(self, buff):
     self._buffer += buff
     self.bufsize = len(self._buffer)
 
-  #
-  #
-  #
   def skipBuffer(self, n=4, flag=1):
     self.current += n
     if flag :
@@ -471,9 +452,6 @@ class CommReader:
       self.current = 0
     return 
 
-  #
-  #
-  #
   def clearBuffer(self, n=0):
     if n > 0 :
       self._buffer = self._buffer[n:]
@@ -484,7 +462,7 @@ class CommReader:
       self.current = 0
 
   #
-  #
+  #  Main routine ?
   #
   def checkBuffer(self):
     try:
@@ -513,12 +491,6 @@ class CommReader:
 
     if flag:
       self.owner.close()
-    return
-  #
-  #
-  #
-  def closeSession(self):
-    self.owner.close()
     return
   #
   #
@@ -562,17 +534,17 @@ class CommReader:
   #
   #
   #
-  def getParser(self):
-    return self.parser
+  def closeSession(self):
+    self.owner.close()
+    return
 
 
-
-#
-#  Reader class for eSEAT port
+######################################
+#  Reader class for Http
 #
 class HttpReader(CommReader):
   #
-  #
+  # Constructor
   #
   def __init__(self, rtc=None, dirname="html"):
     CommReader.__init__(self, None, HttpCommand(dirname))
@@ -660,8 +632,8 @@ class HttpReader(CommReader):
     except:
       self.sendResponse(self.parser.response404())
 
-  #
-  #
+  ###############
+  # for COMET
   #
   def cometRequest(self, data):
     if data.has_key("id") :
@@ -694,17 +666,20 @@ class HttpReader(CommReader):
     return
 
   #
-  #
+  #  for WebSocket
   #
   def callHandler(self, data):
     server = self.getServer()
     server.cometManager.callHandler(data['id'], data)
     return
 
-#
+############################################
 # CommParser: parse the reveived message
 #
 class CommParser:
+  #
+  #  Costrutor
+  #
   def __init__(self, buff, rdr=None):
     self._buffer=buff
     self.bufsize = len(buff)
@@ -724,22 +699,14 @@ class CommParser:
     self._buffer=buff
     self.bufsize = len(buff)
     self.offset=0
-  #
-  #
-  #
+
   def clearBuffer(self):
     self.setBuffer("")
 
-  #
-  #
-  #
   def appendBuffer(self, buff):
     self._buffer += buff
     self.bufsize = len(self.buff)
 
-  #
-  #  skip buffer, but not implemented....
-  #
   def skipBuffer(self, n=0):
       print "call skipBuffer %d" % n
       data = ""
@@ -756,7 +723,7 @@ class CommParser:
     return None
 
   #
-  #
+  # set/get operations...
   #
   def setReader(self, rdr):
     self.reader=rdr
@@ -790,13 +757,13 @@ class CommParser:
     except:
       print "Error in getServiceNames()"
       return None
-#
+#############################################
 #  Httpd  
 #     CommParser <--- HttpCommand
 #
 class HttpCommand(CommParser):
   #
-  #
+  # Constructor
   #
   def __init__(self, dirname=".", buff=''):
     CommParser.__init__(self, buff)
@@ -864,7 +831,7 @@ class HttpCommand(CommParser):
         res[key.strip()] = val.strip()
     return res
 
-  #
+  ##################################
   # Generate response message
   #
   def response101(self, header, contents=""):
@@ -904,13 +871,13 @@ class HttpCommand(CommParser):
     res += "\r\n"
     return res
 
-#
+################################################
 #  WebSocket Parser
 #     CommParser <--- WebSocketCommand
 #
 class WebSocketCommand(CommParser):
   #
-  #
+  # Constructor
   #
   def __init__(self, reader, func, buff=''):
     CommParser.__init__(self, buff, reader)
@@ -1033,9 +1000,9 @@ class WebSocketCommand(CommParser):
   #
   def sendTextFrame(self, msg, masked=False):
     if masked :
-      buf = self.genMaskedTextFrame(msg)
+      buf = self.genMaskedDataFrame(msg)
     else:
-      buf = self.genRawTextFrame(msg)
+      buf = self.genDataFrame(msg)
     self.reader.sendResponse(buf, False)
     return
   #
@@ -1065,7 +1032,7 @@ class WebSocketCommand(CommParser):
   #
   #
   #
-  def genRawTextFrame(self, msg):
+  def genDataFrame(self, msg):
     buf="\x81"
     slen = len(msg)
     if slen > 65535: 
@@ -1078,7 +1045,7 @@ class WebSocketCommand(CommParser):
   #
   #
   #
-  def genMaskedTextFrame(self, msg):
+  def genMaskedDataFrame(self, msg):
     mask = ""
     for i in range(4):
       mask += chr(int(random.random()*256))
@@ -1117,12 +1084,12 @@ class WebSocketCommand(CommParser):
       self.sendTextFrame(msg)
     return
 
-#
+######################################33
 #     CometManager
 #
 class CometManager:
   #
-  #
+  # Constructor
   #
   def __init__(self, server):
     self.server = server
@@ -1180,9 +1147,9 @@ class CometManager:
     for k in  keys :
       self.response(k, json_data, ctype)
 
-############# Functoins
+##################################################
 #
-#
+# Functoins
 #
 def get_file_contents(fname, dirname="."):
   contents = None
@@ -1232,8 +1199,8 @@ def parseData(data):
     res[key.strip()] = val.strip()
   return res
 
-#
-#
+######################################
+#  HTTP Server
 #
 def create_httpd(num=80, top="html"):
   reader = HttpReader(None, top)
