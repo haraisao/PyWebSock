@@ -34,3 +34,22 @@ class Func2(FuncTest):
 
   def super(self):
     return super(Func2, self)
+
+
+req=[1,2,3,4,0]
+current=0
+last=4
+
+def getq():
+    global req, current, last
+    if req[current] == -1: return None
+    v=req[current]
+    req[current]=-1
+    current=v
+    return v
+
+def retq(v):
+    global req, current, last
+    req[req[last]] = v
+    last=req[last]
+    return
