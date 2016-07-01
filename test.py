@@ -36,20 +36,26 @@ class Func2(FuncTest):
     return super(Func2, self)
 
 
-req=[1,2,3,4,0]
-current=0
-last=4
+class adminId():
+  def __init__(self):
+    self.queue=[1,2,3,4,5,6,7,8,9,-1]
+    self.released=[]
+    self.next_id=0
+    self.last_id=9
 
-def getq():
-    global req, current, last
-    if req[current] == -1: return None
-    v=req[current]
-    req[current]=-1
-    current=v
-    return v
+  def request(self):
+    if self.queue[self.next_id] == -1: return None
+    res = self.next_id
+    self.next_id = self.queue[self.next_id]
+    self.queue[res] = -1
+    return res
 
-def retq(v):
-    global req, current, last
-    req[req[last]] = v
-    last=req[last]
+  def release(self,val):
+    if self.last_id == val: return
+    if self.queue[val] == -1:
+      self.queue[self.last_id] = val
+      self.last_id = val
+      print "Release %d" % val
+    else:
+      print "Error"
     return
