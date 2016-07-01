@@ -326,7 +326,7 @@ class SocketServer(SocketPort):
      except:
        pass
 
-  def getServices(self, klass):
+  def getComPorts(self, klass):
     res=[]
     try:
       for x in self.com_ports:
@@ -334,6 +334,20 @@ class SocketServer(SocketPort):
     except:
       pass
     return res
+  #
+  #
+  #
+  def getWSList(self):
+    res = []
+    try:
+      comports = self.getComPorts(WebSocketCommand)
+      for port in comports:
+        res.append(port.reader.command)
+      return res
+    except:
+      print "Error in getWSList()"
+      return None
+
    
 #
 #  Service Adaptor
@@ -742,7 +756,7 @@ class CommCommand:
       return self.reader.getServer()
     return None
 
-  def getServices(self):
+  def getComPorts(self):
     srvr=self.getServer()
     if srvr:
       return srvr.com_ports
@@ -758,14 +772,24 @@ class CommCommand:
       print "Error in getMyServiceName()"
       return None
 
-  def getServiceNames(self):
+  def getComPortNames(self):
     try:
-      services = self.getServices()
-      res = map(lambda n:n.name, services)
+      comports = self.getComPorts()
+      res = map(lambda n:n.name, comports)
       return res
     except:
-      print "Error in getServiceNames()"
+      print "Error in getComPortNames()"
       return None
+
+  def getCommandList(self):
+    try:
+      comports = self.getComPorts()
+      res = map(lambda n:n.reader.command, comports)
+      return res
+    except:
+      print "Error in getCommandList()"
+      return None
+
 #############################################
 #  Httpd  
 #     CommCommand <--- HttpCommand
@@ -909,6 +933,21 @@ class WebSocketCommand(CommCommand):
   #
   #
   #
+  def getWSList(self):
+    res = []
+    try:
+      comports = self.getComPorts()
+      for port in comports:
+        if isinstance(port.reader.command, WebSocketCommand) :
+          res.append(port.reader.command)
+      return res
+    except:
+      print "Error in getWSList()"
+      return None
+
+  #
+  #
+  #
   def parseHeader(self, buff):
     fragment = True
     mask_data = None
@@ -936,6 +975,12 @@ class WebSocketCommand(CommCommand):
 
     return [size, fragment, data_type, mask_data, buflen]
 
+  def json_decode(self, msg):
+    try:
+      res = json.loads(msg)
+    except:
+      res = msg
+    return res
   #
   #  data_type 
   #     0x00:  Continue
@@ -956,7 +1001,13 @@ class WebSocketCommand(CommCommand):
         self.data += self.parseDataFrame(size, mask_data, datalen, buff)
         #
         # call function...
-        if not fragment : self.callFunction(self.data)
+        if not fragment :
+          self.data = self.json_decode(self.data)
+          if type(self.data) == dict and 'Status' in self.data and self.data['Status'] == "Opening" :
+              self.sendDataFrame('{"Status": "Opened"}')
+              self.connection_id=self.data['ID']
+          else:
+            self.callFunction(self.data)
 
       elif data_type == 0x02:  # Binary
         if self.current_data_frame == data_type: self.data=""
@@ -1007,7 +1058,7 @@ class WebSocketCommand(CommCommand):
   #
   #
   #
-  def sendTextFrame(self, msg, masked=False):
+  def sendDataFrame(self, msg, masked=False):
     if masked :
       buf = self.genMaskedDataFrame(msg)
     else:
@@ -1090,7 +1141,7 @@ class WebSocketCommand(CommCommand):
     if msg == "Close":
       self.sendCloseFrame()
     else:
-      self.sendTextFrame(msg)
+      self.sendDataFrame(msg)
     return
 
 ######################################33
@@ -1211,6 +1262,7 @@ def parseData(data):
 ######################################
 #  HTTP Server
 #
-def create_httpd(num=80, top="html"):
+def create_httpd(num=80, top="html", command=WebSocketCommand):
   reader = HttpReader(None, top)
+  reader.WSCommand = command(reader)
   return SocketServer(reader, "Web", "localhost", num)

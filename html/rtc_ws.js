@@ -23,6 +23,8 @@ var
   strundefined = typeof undefined,
 
   RtcWs = function( selector, context ){
+    this.genId();
+    this.state="Generating"
     //return new RTC.fn.init( selector, context );
   };
 
@@ -32,14 +34,29 @@ RtcWs.prototype ={
   selector: "",
   showReply: false,
   webSocket: null,
+  id: null,
+  state: null,
+  timer_id: null,
   processEvents: strundefined,
 
-  getMySeatKey: function(){
-     return "My_eSEAT_Key";
+  genId: function(){
+     var i, random;
+     this.id ="";
+     for (i = 0; i < 32; i++){
+         if (i == 8 || i == 12 || i == 16 || i == 20){
+             this.id += "-";
+         }else{
+           random = Math.random() * 16 | 0;
+           this.id += (i == 12 ? 4 : (i == 16 ? (random & 3 | 8) : random)).toString(16);
+         }
+     }
+     console.log(this.id);
+     return this.id
   },
 
-  showKey: function(){
-     alert(this.getMySeatKey());
+  showId: function(){
+     if( this.id == null) { this.genId(); }
+     alert(this.id);
   },
 
   open: function() {
@@ -50,30 +67,66 @@ RtcWs.prototype ={
         this.webSocket.onmessage = this.onMessage;
         this.webSocket.onclose = this.onClose;
         this.webSocket.onerror = this.onError;
+        this.webSocket.state="Opening";
+        this.webSocket.rtc=this;
      }
+     this.state = "Opening";
+  },
+
+  waitOpened: function(obj) {
+    obj.count=0;
+    obj.timer_id = setInterval( function(){
+      console.log("wait:"+obj.webSocket.state);
+      if (obj.webSocket.state=="onOpen" || obj.count>10 ){ 
+          obj.count += 1;
+          clearInterval(obj.timer_id);
+          obj.send('{"ID": "'+obj.id+'", "Status":"Opening"}');
+          obj.timer_id=null;
+      }
+    },500);
   },
 
   onOpen: function(event) {
     console.log("Open webSocket");
+    this.state='onOpen';
   },
 
   onMessage: function(event) {
     if (event && event.data) {
-      console.log("Rec:"+event.data);
-/*
-      var res = this.func_exec(event.data);
-      this.send(JSON.stringify(res));
-      console.log(res);
-*/
+      data = event.data
+      if (this.state == "onOpen"){
+        try{
+          data = JSON.parse(data);
+          this.state = data['Status'];
+          console.log("WS Opened");
+          return;
+        }catch(e){
+           ;
+        }
+      }else if (this.state == "Opened"){
+          // add delay for test...
+        setTimeout(function(){
+
+        var res = this.rtc.func_exec(data);
+        this.rtc.send(JSON.stringify(res));
+        console.log(res);
+
+        }, 3000);
+
+      }else{
+        console.log("State="+this.state+" Recv:"+data);
+      }
     }
   },
 
   onError: function(event) {
     console.log("ERROR!");
+    this.state = "Error";
   },
 
   onClose: function(event) {
      console.log("Close webSocket(" + event.code + ")");
+     this.state = "Closed";
      this.webSocket = null;
   },
 
