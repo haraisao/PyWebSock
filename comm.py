@@ -1259,6 +1259,57 @@ def parseData(data):
     res[key.strip()] = val.strip()
   return res
 
+#
+#
+#
+class syncQueue:
+    def __init__(self):
+        self.cv = threading.Condition()
+        self.queue = []
+
+    def put(self, item):
+        with self.cv:
+            self.queue.append(item)
+            self.cv.notifyAll()
+
+    def get(self):
+        with self.cv:
+            while not len(self.queue) > 0:
+                self.cv.wait()
+            return self.queue.pop(0)
+
+class idManager():
+  def __init__(self, n=10):
+    self.seq_queue=[]
+    self.sq=[]
+    self.released=[]
+    self.next_id=0
+    for i in range(n):
+      self.sq.append( syncQueue() )
+      if i < n-1:
+        self.seq_queue.append(i+1)
+      else:
+        self.seq_queue.append(-1)
+        self.last_id=i
+
+  def request(self):
+    if self.seq_queue[self.next_id] == -1: return None
+    res = self.next_id
+    self.next_id = self.seq_queue[self.next_id]
+    self.seq_queue[res] = -1
+    return res
+
+  def release(self,val):
+    if self.last_id == val: return
+    if self.seq_queue[val] == -1:
+      self.seq_queue[self.last_id] = val
+      self.last_id = val
+#      print "Release %d" % val
+    else:
+      print "Error in Release[%d]" % val
+    return
+
+
 ######################################
 #  HTTP Server
 #
