@@ -37,6 +37,7 @@ RtcWs.prototype ={
   id: null,
   state: null,
   timer_id: null,
+  debug_mode: false,
   processEvents: strundefined,
 
   genId: function(){
@@ -50,7 +51,7 @@ RtcWs.prototype ={
            this.id += (i == 12 ? 4 : (i == 16 ? (random & 3 | 8) : random)).toString(16);
          }
      }
-     console.log(this.id);
+     if (this.debug_mode){ console.log(this.id); }
      return this.id
   },
 
@@ -76,7 +77,7 @@ RtcWs.prototype ={
   waitOpened: function(obj) {
     obj.count=0;
     obj.timer_id = setInterval( function(){
-      console.log("wait:"+obj.webSocket.state);
+      if(this.debug_mode){ console.log("wait:"+obj.webSocket.state); }
       if (obj.webSocket.state=="onOpen" || obj.count>10 ){ 
           obj.count += 1;
           clearInterval(obj.timer_id);
@@ -87,7 +88,7 @@ RtcWs.prototype ={
   },
 
   onOpen: function(event) {
-    console.log("Open webSocket");
+    if(this.rtc.debug_mode){ console.log("Open webSocket"); }
     this.state='onOpen';
   },
 
@@ -98,20 +99,15 @@ RtcWs.prototype ={
         try{
           data = JSON.parse(data);
           this.state = data['Status'];
-          console.log("WS Opened");
+          if(this.rtc.debug_mode){ console.log("WS Opened"); }
           return;
         }catch(e){
            ;
         }
       }else if (this.state == "Opened"){
-          // add delay for test...
-        setTimeout(function(){
-
         var res = this.rtc.func_exec(data);
-        this.rtc.send(JSON.stringify(res));
-        console.log(res);
-
-        }, 3000);
+        this.rtc.send(res);
+        if(this.rtc.debug_mode){ console.log(res); }
 
       }else{
         console.log("State="+this.state+" Recv:"+data);
@@ -133,21 +129,25 @@ RtcWs.prototype ={
   send: function(message) {
      if (message && this.webSocket) {
        this.webSocket.send(message);
-       console.log("Send Message (" + message + ")");
+       if(this.debug_mode){ console.log("Send Message (" + message + ")"); }
      }
   },
 
   func_exec: function(msg) {
      var vals = JSON.parse(msg);
      try{
+       var seq = vals.seq;
        var func = eval(vals.func);
-       return func.apply(null, vals.args);
+       var res = func.apply(null, vals.args);
+       var result = { "seq": seq, "result":res };
+
+       return  JSON.stringify(result);
+
      }catch(e){
        console.log("ERROR in func_exec");
      }
      return null;
   },
-
 
 };
 

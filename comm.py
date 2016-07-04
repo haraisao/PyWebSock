@@ -917,6 +917,7 @@ class WebSocketCommand(CommCommand):
     self.func_name = func
     self.current_data_frame = 0x01
     self.data=""
+    self.seqMgr=seqManager()
   #
   #
   #
@@ -1003,9 +1004,15 @@ class WebSocketCommand(CommCommand):
         # call function...
         if not fragment :
           self.data = self.json_decode(self.data)
-          if type(self.data) == dict and 'Status' in self.data and self.data['Status'] == "Opening" :
+          if type(self.data) == dict :
+            if  'Status' in self.data and self.data['Status'] == "Opening" :
               self.sendDataFrame('{"Status": "Opened"}')
               self.connection_id=self.data['ID']
+
+            elif 'seq' in self.data and 'result' in self.data :
+              self.seqMgr.putResult(self.data['seq'], self.data['result'])
+            else:
+              print "Error: invalid message"
           else:
             self.callFunction(self.data)
 
@@ -1135,6 +1142,24 @@ class WebSocketCommand(CommCommand):
       print "No such method %s" % self.func_name
 
   #
+  # 
+  #
+  def funCall(self, funcname,  *args, **keyargs):
+     seq = self.seqMgr.request()
+     if type(seq) == int and seq >= 0 :
+       cmd={"seq":seq, "func": funcname, "args": args}
+       cmdData = json.dumps(cmd)
+       self.sendDataFrame(cmdData) 
+       res=self.seqMgr.getResult(seq)
+       print res
+     else:
+       print "Too much request!"
+
+     return
+
+  def getResult(self, seq):
+     return self.seqMgr.getResult()
+
   # Sample Function...
   #
   def echo(self, msg):
@@ -1278,7 +1303,7 @@ class syncQueue:
                 self.cv.wait()
             return self.queue.pop(0)
 
-class idManager():
+class seqManager():
   def __init__(self, n=10):
     self.seq_queue=[]
     self.sq=[]
@@ -1304,10 +1329,22 @@ class idManager():
     if self.seq_queue[val] == -1:
       self.seq_queue[self.last_id] = val
       self.last_id = val
-#      print "Release %d" % val
     else:
       print "Error in Release[%d]" % val
     return
+
+  def registCommand(self):
+    seq = self.request()
+    return seq
+
+  def putResult(self, seq, val):
+    self.sq[seq].put(val)
+    return
+
+  def getResult(self,val):
+    res = self.sq[val].get()
+    self.release(val)
+    return res
 
 
 ######################################

@@ -26,34 +26,13 @@
            return a+1;
         }
 
-    var count=0;
-    var timer_id;
-
-    function repeat100(cnt, func, args) {
-      count=0;
-      timer_id = setInterval( function(){
-        var res=func.apply(null, args);
-        console.log("wait:["+count+"]"+res);
-        count += 1;
-        if (count > cnt ){ 
-          clearInterval(timer_id);
-          timer_id = null;
-        }
-      },100);
-    }
         function press(event) {
             if (event && event.which == 13) {
                 var message = $("[data-name='message']").val();
                 chat(message);
-                rtc.send("" + message);
-/*
-                res = func_exec(message);
                 console.log(res);
-                if (message && webSocket) {
-                    rtc.webSocket.send("" + message);
-                    $("[data-name='message']").val("");
-                }
-*/
+            //    rtc.send("" + message);
+                $("[data-name='message']").val("");
             }
         }
 
@@ -64,6 +43,7 @@
             }
             var msgtag = $("<div>").text(message);
             $("[data-name='chat']").prepend(msgtag);
+            return message;
         }
 
         $(init);
