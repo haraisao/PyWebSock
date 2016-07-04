@@ -60,7 +60,7 @@ RtcWs.prototype ={
      alert(this.id);
   },
 
-  open: function() {
+  open: function(uri) {
     if (this.webSocket == null) {
         this.webSocket = new WebSocket(uri);
 
