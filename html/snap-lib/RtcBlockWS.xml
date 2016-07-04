@@ -1,0 +1,85 @@
+<blocks app="Snap! 4.0, http://snap.berkeley.edu" version="1">
+  <block-definition s="RtcWS $flag %&apos;host&apos;" type="command" category="other">
+    <header></header>
+    <code></code>
+
+    <inputs><input type="%s">localhost:8080</input></inputs>
+    <script>
+
+      <block s="doRun">
+        <block s="reportJSFunction">
+          <list><l></l></list>
+          <block s="reportURL">
+            <block s="reportJoinWords">
+              <list>
+                <block var="host"/><l>/jquery-3.0.0.min.js</l>
+              </list>
+            </block>
+          </block>
+        </block>
+        <list></list>
+      </block>
+      <block s="doRun">
+        <block s="reportJSFunction">
+          <list><l></l></list>
+          <block s="reportURL">
+            <block s="reportJoinWords">
+              <list>
+                <block var="host"/><l>/rtc_ws.js</l>
+              </list>
+            </block>
+          </block>
+        </block>
+        <list></list>
+      </block>
+
+      <block s="doRun">
+        <block s="reportJSFunction">
+          <list><l></l></list>
+          <l>
+window.url = "ws://" + location.host + "/ws/rpc";
+if (!window.rtc ){
+  window.rtc=new RtcWs();
+}
+	</l>
+        </block>
+        <list></list>
+      </block>
+    </script>
+  </block-definition>
+
+  <block-definition s="OpenWS" type="command" category="other">
+    <header></header>
+    <code></code>
+    <script>
+      <block s="doRun">
+        <block s="reportJSFunction">
+          <list><l></l></list>
+          <l>
+alert(url);
+rtc.open(url);
+rtc.waitOpened(rtc);
+          </l>
+        </block>
+        <list></list>
+      </block>
+     </script>
+  </block-definition>
+
+
+  <block-definition s="RunJS %&apos;src&apos;" type="command" category="other">
+    <header></header>
+    <code></code>
+    <inputs><input type="%txt"></input></inputs>
+    <script>
+      <block s="doRun">
+        <block s="reportJSFunction">
+          <list><l></l></list>
+          <block var="src"/>
+        </block>
+        <list></list>
+      </block>
+     </script>
+  </block-definition>
+
+</blocks>
