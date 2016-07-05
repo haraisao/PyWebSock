@@ -22,16 +22,18 @@ var
   version = "0.1",
   strundefined = typeof undefined,
 
-  RtcWs = function( selector, context ){
+  RtcWs = function( parent ){
+    this.parent = parent;
     this.genId();
     this.state="Generating"
+    
     //return new RTC.fn.init( selector, context );
   };
 
 RtcWs.prototype ={
   rtc: version,
   constructor: RtcWs,
-  selector: "",
+  parent: null,
   showReply: false,
   webSocket: null,
   id: null,
@@ -134,19 +136,38 @@ RtcWs.prototype ={
   },
 
   func_exec: function(msg) {
-     var vals = JSON.parse(msg);
      try{
+       var vals = JSON.parse(msg);
        var seq = vals.seq;
        var func = eval(vals.func);
-       var res = func.apply(null, vals.args);
-       var result = { "seq": seq, "result":res };
-
-       return  JSON.stringify(result);
+       if (seq && func){
+         var res = func.apply(null, vals.args);
+         var result = { "seq": seq, "result":res };
+         return  JSON.stringify(result);
+       }else{
+         var res = func.apply(null, vals.args);
+         return null;
+       }
 
      }catch(e){
-       console.log("ERROR in func_exec");
+       eval(msg);
      }
      return null;
+  },
+
+  broadcast: function(msg) {
+    try{
+      if( this.parent ){
+        blk = this.parent.scripts.children[0];
+        proc = new Process(blk);
+        proc.doBroadcast(msg);
+        delete proc;
+      }
+
+    }catch(e){
+      console.log( "Error in broadcast" );
+    }
+    return null;
   },
 
 };

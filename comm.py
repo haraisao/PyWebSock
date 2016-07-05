@@ -348,6 +348,13 @@ class SocketServer(SocketPort):
       print "Error in getWSList()"
       return None
 
+  def getWS(self, n):
+    lst = self.getWSList()
+    try:
+      return lst[n]
+    except:
+      print "Error: invalid index in getWS()"
+      return None 
    
 #
 #  Service Adaptor
@@ -917,7 +924,8 @@ class WebSocketCommand(CommCommand):
     self.func_name = func
     self.current_data_frame = 0x01
     self.data=""
-    self.seqMgr=seqManager()
+    self.seqMgr = seqManager()
+    self.syncQ  = syncQueue()
   #
   #
   #
@@ -1011,6 +1019,10 @@ class WebSocketCommand(CommCommand):
 
             elif 'seq' in self.data and 'result' in self.data :
               self.seqMgr.putResult(self.data['seq'], self.data['result'])
+
+            elif 'result' in self.data :
+              self.syncQ.put(self.data['result'])
+
             else:
               print "Error: invalid message"
           else:
@@ -1144,7 +1156,7 @@ class WebSocketCommand(CommCommand):
   #
   # 
   #
-  def funCall(self, funcname,  *args, **keyargs):
+  def funcCall(self, funcname,  *args, **keyargs):
      seq = self.seqMgr.request()
      if type(seq) == int and seq >= 0 :
        cmd={"seq":seq, "func": funcname, "args": args}
@@ -1156,9 +1168,23 @@ class WebSocketCommand(CommCommand):
        print "Too much request!"
 
      return
-
+  #
+  #
   def getResult(self, seq):
      return self.seqMgr.getResult()
+
+  #
+  #
+  #
+  def call_snap(self, cmd, *args, **keyargs):
+     self.sendDataFrame(cmd) 
+     res=self.syncQ.get()
+     return res
+
+  def snap_broadcast(self, msg, wit=False):
+     self.sendDataFrame('this.broadcast("'+msg+'")') 
+     if wit : return self.syncQ.get()
+     return
 
   # Sample Function...
   #

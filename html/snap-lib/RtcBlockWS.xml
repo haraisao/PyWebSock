@@ -32,7 +32,7 @@
         </block>
         <list></list>
       </block>
-
+<!--
       <block s="doRun">
         <block s="reportJSFunction">
           <list><l></l></list>
@@ -45,6 +45,7 @@ if (!window.rtc ){
         </block>
         <list></list>
       </block>
+-->
     </script>
   </block-definition>
 
@@ -56,15 +57,40 @@ if (!window.rtc ){
         <block s="reportJSFunction">
           <list><l></l></list>
           <l>
-alert(url);
-rtc.open(url);
-rtc.waitOpened(rtc);
+var url = "ws://" + location.host + "/ws/rpc";
+if (!this.rtc ){
+  this.rtc=new RtcWs();
+  console.log(url);
+  this.rtc.open(url);
+  this.rtc.waitOpened(rtc);
+}
           </l>
         </block>
         <list></list>
       </block>
      </script>
   </block-definition>
+
+  <block-definition s="Broadcast %&apos;msg&apos;" type="command" category="other">
+    <header></header>
+    <code></code>
+    <inputs><input type="%s"></input></inputs>
+    <script>
+      <block s="doRun">
+        <block s="reportJSFunction">
+          <list><l></l></list>
+          <l>
+blk = this.scripts.chileren[0]
+proc = new Process(bkl);
+proc.doBroadcast(msg);
+delete proc;
+          </l>
+        </block>
+        <list></list>
+      </block>
+     </script>
+  </block-definition>
+
 
 
   <block-definition s="RunJS %&apos;src&apos;" type="command" category="other">
