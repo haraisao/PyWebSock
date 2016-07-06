@@ -924,6 +924,7 @@ class WebSocketCommand(CommCommand):
     self.func_name = func
     self.current_data_frame = 0x01
     self.data=""
+    self.requestReturn=False
     self.seqMgr = seqManager()
     self.syncQ  = syncQueue()
   #
@@ -1021,7 +1022,7 @@ class WebSocketCommand(CommCommand):
               self.seqMgr.putResult(self.data['seq'], self.data['result'])
 
             elif 'result' in self.data :
-              self.syncQ.put(self.data['result'])
+              if self.requestReturn : self.syncQ.put(self.data['result'])
 
             else:
               print "Error: invalid message"
@@ -1176,15 +1177,22 @@ class WebSocketCommand(CommCommand):
   #
   #
   #
-  def call_snap(self, cmd, *args, **keyargs):
-     self.sendDataFrame(cmd) 
-     res=self.syncQ.get()
+  def waitResult(self):
+     res = None
+     if self.requestReturn :
+       res=self.syncQ.get()
+       self.requestReturn=False
      return res
 
-  def snap_broadcast(self, msg, wit=False):
+  def call_snap(self, cmd, *args, **keyargs):
+     self.requestReturn=True
+     self.sendDataFrame(cmd) 
+     return self.waitResult()
+
+  def snap_broadcast(self, msg, reqestRet=True):
+     self.requestReturn=requestRet
      self.sendDataFrame('this.broadcast("'+msg+'")') 
-     if wit : return self.syncQ.get()
-     return
+     return self.waitResult()
 
   # Sample Function...
   #

@@ -89,6 +89,9 @@ RtcWs.prototype ={
     },500);
   },
 
+  /*
+    Event handlers
+  */
   onOpen: function(event) {
     if(this.rtc.debug_mode){ console.log("Open webSocket"); }
     this.state='onOpen';
@@ -125,8 +128,11 @@ RtcWs.prototype ={
   onClose: function(event) {
      console.log("Close webSocket(" + event.code + ")");
      this.state = "Closed";
-     this.webSocket = null;
+     this.rtc.connection_id = null;
+     this.rtc.webSocket = null;
   },
+
+  /******************************/
 
   send: function(message) {
      if (message && this.webSocket) {
@@ -155,6 +161,9 @@ RtcWs.prototype ={
      return null;
   },
 
+  /*
+    for Snap!
+  */
   broadcast: function(msg) {
     try{
       if( this.parent ){
