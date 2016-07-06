@@ -1189,7 +1189,7 @@ class WebSocketCommand(CommCommand):
      self.sendDataFrame(cmd) 
      return self.waitResult()
 
-  def snap_broadcast(self, msg, reqestRet=True):
+  def snap_broadcast(self, msg, requestRet=True):
      self.requestReturn=requestRet
      self.sendDataFrame('this.broadcast("'+msg+'")') 
      return self.waitResult()
