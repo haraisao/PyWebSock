@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import comm
 
@@ -32,10 +33,15 @@ class ws_sample(comm.WebSocketCommand):
   def rpc(self, msg):
     if msg == 'projects':
       flist = os.listdir('html/snap/projects');
+      print flist
       self.sendDataFrame(json.dumps({'result': flist}))
     return
 
 ###################
+def exit():
+    srv.terminate()
+    sys.exit()
+
 def main():
     global srv
     srv = comm.create_httpd(8080, "html", ws_sample)

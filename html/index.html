@@ -22,9 +22,14 @@
         function press(event) {
             if (event && event.which == 13) {
                 var message = $("[data-name='message']").val();
-                chat(message);
-                rtc.send(message);
-                $("[data-name='message']").val("");
+                if( message == "list"){
+                  getProjectList();
+                }else{
+                  chat(message);
+                  eval(message);
+                  //rtc.send(message);
+                  $("[data-name='message']").val("");
+                }
             }
         }
 
@@ -42,7 +47,8 @@
             var lst = ['sample', 'aa', 'bb'];
 
             rtc.send("projects");
-            console.log(rtc.get_result());
+            lst = rtc.get_result(1);
+            if(!lst) { return; }
 
             var lstview = '<ul>';
             for(var i=0; i<lst.length; i++){
@@ -50,8 +56,6 @@
             }
             lstview += '</ul>';
             $("[data-name='project-list']").html(lstview);
-
-
         }
 
         $(init);
@@ -67,6 +71,8 @@
 
   <div style="width:45%;position:absolute;top:0px;left:50%;">
   <h2>List of Projects</h2>
+  <button onClick="getProjectList();">Update List</button>
+  <button onClick="rtc.check_result();">Check</button>
     <hr />
     <div data-name="project-list"></div>
   </div>
