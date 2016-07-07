@@ -39,8 +39,10 @@ RtcWs.prototype ={
   id: null,
   state: null,
   timer_id: null,
+  results: [],
   debug_mode: false,
   processEvents: strundefined,
+ 
 
   genId: function(){
      var i, random;
@@ -89,9 +91,6 @@ RtcWs.prototype ={
     },500);
   },
 
-  /*
-    Event handlers
-  */
   onOpen: function(event) {
     if(this.rtc.debug_mode){ console.log("Open webSocket"); }
     this.state='onOpen';
@@ -100,7 +99,11 @@ RtcWs.prototype ={
   onMessage: function(event) {
     if (event && event.data) {
       data = event.data
+      console.log(data);
       if (this.state == "onOpen"){
+        /// 
+        /// Nagotiate open..
+        /// 
         try{
           data = JSON.parse(data);
           this.state = data['Status'];
@@ -110,8 +113,12 @@ RtcWs.prototype ={
            ;
         }
       }else if (this.state == "Opened"){
+        /// 
+        /// Communicate with client...
+        /// Call function 
+        /// 
         var res = this.rtc.func_exec(data);
-        this.rtc.send(res);
+        if (res !== null){ this.rtc.send(res); }
         if(this.rtc.debug_mode){ console.log(res); }
 
       }else{
@@ -128,42 +135,72 @@ RtcWs.prototype ={
   onClose: function(event) {
      console.log("Close webSocket(" + event.code + ")");
      this.state = "Closed";
-     this.rtc.connection_id = null;
-     this.rtc.webSocket = null;
+     this.webSocket = null;
   },
 
-  /******************************/
-
   send: function(message) {
+     console.log(message);
      if (message && this.webSocket) {
        this.webSocket.send(message);
        if(this.debug_mode){ console.log("Send Message (" + message + ")"); }
      }
   },
 
+
+  ///
+  ///
+  set_result: function(msg) {
+    console.log(msg);
+    this.results.push(msg);
+    return;
+  },
+
+  get_result: function() {
+    if( this.results.length > 0){
+      var res=this.results[0];
+      this.results.shift();
+      return res;
+    }else{
+     return null;
+    }
+  },
+
+  ///
+  /// Execute function
   func_exec: function(msg) {
+     var res = null;
      try{
+       /// parse JSON message 
+       /// from Server side request,
+       ///   sync  -> msg={'func': 'f', 'seq': n, 'args': 'ARG'}
+       ///   async -> msg={'func': 'f',  'args': 'ARG'}
        var vals = JSON.parse(msg);
        var seq = vals.seq;
        var func = eval(vals.func);
-       if (seq && func){
-         var res = func.apply(null, vals.args);
-         var result = { "seq": seq, "result":res };
-         return  JSON.stringify(result);
-       }else{
-         var res = func.apply(null, vals.args);
+       var result = vals.result;
+
+       if (seq && func){ /// synchronize request
+         res = func.apply(null, vals.args);
+         return  JSON.stringify( { "seq": seq, "result":res } );
+       }else if (result){ 
+         this.set_result(result);
          return null;
+       }else{           /// asynchronize requset
+         res = func.apply(null, vals.args);
+         return  JSON.stringify(res);
        }
 
      }catch(e){
+       ///  'msg' isn't JSON format
        eval(msg);
      }
-     return null;
+
+     return res;
   },
 
-  /*
-    for Snap!
-  */
+  ///
+  ///  for Snap! function...
+  ///
   broadcast: function(msg) {
     try{
       if( this.parent ){

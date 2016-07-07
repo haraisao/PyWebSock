@@ -1013,6 +1013,7 @@ class WebSocketCommand(CommCommand):
         # call function...
         if not fragment :
           self.data = self.json_decode(self.data)
+
           if type(self.data) == dict :
             if  'Status' in self.data and self.data['Status'] == "Opening" :
               self.sendDataFrame('{"Status": "Opened"}')
@@ -1148,7 +1149,6 @@ class WebSocketCommand(CommCommand):
   # call own method
   #
   def callFunction(self, msg):
-    #print self.func_name
     if self.func_name in dir(self.__class__):
       return getattr(self.__class__, self.func_name)(self, msg)
     else:
@@ -1194,6 +1194,7 @@ class WebSocketCommand(CommCommand):
      self.sendDataFrame('this.broadcast("'+msg+'")') 
      return self.waitResult()
 
+  #
   # Sample Function...
   #
   def echo(self, msg):
