@@ -39,10 +39,12 @@ RtcWs.prototype ={
   id: null,
   state: null,
   timer_id: null,
-  results: [],
   debug_mode: false,
+  seq_queue: [1,2,3,4,5,6,7,8,9,-1],
+  next_seq:0,
+  last_seq:9,
+  reply_queue: [null, null, null, null, null, null, null, null, null, null],
   processEvents: strundefined,
- 
 
   genId: function(){
      var i, random;
@@ -99,11 +101,7 @@ RtcWs.prototype ={
   onMessage: function(event) {
     if (event && event.data) {
       data = event.data
-      console.log(data);
       if (this.state == "onOpen"){
-        /// 
-        /// Nagotiate open..
-        /// 
         try{
           data = JSON.parse(data);
           this.state = data['Status'];
@@ -113,12 +111,8 @@ RtcWs.prototype ={
            ;
         }
       }else if (this.state == "Opened"){
-        /// 
-        /// Communicate with client...
-        /// Call function 
-        /// 
         var res = this.rtc.func_exec(data);
-        if (res !== null){ this.rtc.send(res); }
+        if (res){ this.rtc.send(res); }
         if(this.rtc.debug_mode){ console.log(res); }
 
       }else{
@@ -139,68 +133,78 @@ RtcWs.prototype ={
   },
 
   send: function(message) {
-     console.log(message);
      if (message && this.webSocket) {
        this.webSocket.send(message);
        if(this.debug_mode){ console.log("Send Message (" + message + ")"); }
      }
   },
 
-
-  ///
-  ///
-  set_result: function(msg) {
-    console.log(msg);
-    this.results.push(msg);
-    return;
+  request_seq: function() {
+     var seq = -1;
+     if(this.seq_queue[this.next_seq] != -1 && this.reply_queue[this.next_seq] == null){
+       seq = this.next_seq;
+       this.next_seq = this.seq_queue[this.next_seq];
+       this.seq_queue[seq] = -1;
+     }
+     return seq;
   },
 
-  get_result: function() {
-    if( this.results.length > 0){
-      var res=this.results[0];
-      this.results.shift();
-      return res;
-    }else{
-     return null;
+  release_seq: function(seq) {
+    if (this.seq_queue.indexOf(seq) == -1 && this.seq_queue[ this.last_seq ] == -1){
+      this.reply_queue[seq]=null;
+      this.seq_queue[ this.last_seq ] = seq;
+      this.last_seq = seq;
     }
   },
 
-  ///
-  /// Execute function
-  func_exec: function(msg) {
-     var res = null;
-     try{
-       /// parse JSON message 
-       /// from Server side request,
-       ///   sync  -> msg={'func': 'f', 'seq': n, 'args': 'ARG'}
-       ///   async -> msg={'func': 'f',  'args': 'ARG'}
-       var vals = JSON.parse(msg);
-       var seq = vals.seq;
-       var func = eval(vals.func);
-       var result = vals.result;
-
-       if (seq && func){ /// synchronize request
-         res = func.apply(null, vals.args);
-         return  JSON.stringify( { "seq": seq, "result":res } );
-       }else if (result){ 
-         this.set_result(result);
-         return null;
-       }else{           /// asynchronize requset
-         res = func.apply(null, vals.args);
-         return  JSON.stringify(res);
-       }
-
-     }catch(e){
-       ///  'msg' isn't JSON format
-       eval(msg);
-     }
-
-     return res;
+  call: function(msg, rfunc=null) {
+    var id = this.request_seq();
+    if (id < 0){
+      console.log("Over requests...");
+    }else{
+      this.reply_queue[id]=rfunc;
+      this.send(JSON.stringify({"request_seq": id, "args": msg}));
+    }
   },
 
-  ///
-  ///  for Snap! function...
-  ///
+  call_reply: function(seq, args) {
+    var func = this.reply_queue[seq];
+    var res = null;
+    if(func){
+      res = func(args);
+    }
+    this.release_seq(seq);
+    return null;
+  },
+
+  func_exec: function(msg) {
+     try{
+       var vals = JSON.parse(msg);
+       var seq = vals.seq;
+       var reply_seq = vals.reply_seq;
+       var result = vals.result;
+
+       if (self.func){
+         var func = eval(vals.func);
+         if (seq){
+           var res = func.apply(null, vals.args);
+           var result = { "seq": seq, "result":res };
+           return  JSON.stringify(result);
+         }else{
+           var res = func.apply(null, vals.args);
+         }
+       }else{
+         if (reply_seq >= 0){
+           this.call_reply(reply_seq, result);
+         }
+       }
+       return null;
+     }catch(e){
+       eval(msg);
+     }
+     return null;
+  },
+
   broadcast: function(msg) {
     try{
       if( this.parent ){

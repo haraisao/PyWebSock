@@ -44,10 +44,11 @@
         }
 
         function getProjectList() {
-            var lst = ['sample', 'aa', 'bb'];
+            rtc.call("projects", updateProjectList);
+        }
 
-            rtc.send("projects");
-            lst = rtc.get_result(1);
+        function updateProjectList(lst) {
+
             if(!lst) { return; }
 
             var lstview = '<ul>';

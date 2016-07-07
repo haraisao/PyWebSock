@@ -1,4 +1,6 @@
-
+import os
+import json
+import sys
 import comm
 
 class ws_sample(comm.WebSocketCommand):
@@ -28,10 +30,17 @@ class ws_sample(comm.WebSocketCommand):
     self.sendDataFrame(res)
     return
 
-  def rpc(self, msg):
-    res="alert('%s');" % msg
-    print res
-    #self.sendDataFrame(res)
+  def rpc(self, msg, seq):
+    print "Call rpc"
+    print self.reader.dirname + '/snap/projects'
+    try:
+      print os.listdir(self.reader.dirname +'/snap/projects')
+      if msg == 'projects':
+        flist = os.listdir(self.reader.dirname +'/snap/projects')
+        print flist
+        self.sendDataFrame(json.dumps({'reply_seq':seq, 'result': flist}))
+    except:
+      print "ERROR"
     return
 
 ###################

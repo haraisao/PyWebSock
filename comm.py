@@ -1022,6 +1022,9 @@ class WebSocketCommand(CommCommand):
             elif 'seq' in self.data and 'result' in self.data :
               self.seqMgr.putResult(self.data['seq'], self.data['result'])
 
+            elif 'request_seq' in self.data and 'args' in self.data :
+              self.applyFunction(self.data['request_seq'], self.data['args'])
+
             elif 'result' in self.data :
               if self.requestReturn : self.syncQ.put(self.data['result'])
 
@@ -1151,6 +1154,12 @@ class WebSocketCommand(CommCommand):
   def callFunction(self, msg):
     if self.func_name in dir(self.__class__):
       return getattr(self.__class__, self.func_name)(self, msg)
+    else:
+      print "No such method %s" % self.func_name
+
+  def applyFunction(self, seq, msg):
+    if self.func_name in dir(self.__class__):
+      return getattr(self.__class__, self.func_name)(self, msg, seq)
     else:
       print "No such method %s" % self.func_name
 
