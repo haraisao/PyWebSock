@@ -31,13 +31,9 @@ class ws_sample(comm.WebSocketCommand):
     return
 
   def rpc(self, msg, seq):
-    print "Call rpc"
-    print self.reader.dirname + '/snap/projects'
     try:
-      print os.listdir(self.reader.dirname +'/snap/projects')
       if msg == 'projects':
         flist = os.listdir(self.reader.dirname +'/snap/projects')
-        print flist
         self.sendDataFrame(json.dumps({'reply_seq':seq, 'result': flist}))
     except:
       print "ERROR"

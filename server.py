@@ -7,7 +7,7 @@ class ws_sample(comm.WebSocketCommand):
   def __init__(self, rdr):
     comm.WebSocketCommand.__init__(self, rdr, "")
 
-  def chat(self, msg):
+  def chat(self, msg, seq=-1):
     if msg == "bye":
       self.sendCloseFrame()
     else:
@@ -15,7 +15,7 @@ class ws_sample(comm.WebSocketCommand):
       self.sendDataFrame(msg)
     return
 
-  def json(self, msg):
+  def json(self, msg, seq=-1):
     wslist = self.getWSList()
     for ws in wslist:
       if ws != self:
@@ -24,17 +24,19 @@ class ws_sample(comm.WebSocketCommand):
         pass
     return
 
-  def blob(self, msg):
+  def blob(self, msg, seq=-1):
     res="Upload: %d bytes" % len(msg)
     print res
     self.sendDataFrame(res)
     return
 
-  def rpc(self, msg):
-    if msg == 'projects':
-      flist = os.listdir('html/snap/projects');
-      print flist
-      self.sendDataFrame(json.dumps({'result': flist}))
+  def rpc(self, msg, seq):
+    try:
+      if msg == 'projects':
+        flist = os.listdir(self.reader.dirname +'/snap/projects')
+        self.sendDataFrame(json.dumps({'reply_seq':seq, 'result': flist}))
+    except:
+      print "ERROR in rpc"
     return
 
 ###################
