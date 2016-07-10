@@ -17,19 +17,16 @@
             rtc.waitOpened(rtc);
 
             chat('Connect to server');
+            setTimeout(getProjectList, 1000);
         }
 
         function press(event) {
             if (event && event.which == 13) {
                 var message = $("[data-name='message']").val();
-                if( message == "list"){
-                  getProjectList();
-                }else{
                   chat(message);
                   eval(message);
                   //rtc.send(message);
                   $("[data-name='message']").val("");
-                }
             }
         }
 
@@ -50,13 +47,34 @@
         function updateProjectList(lst) {
 
             if(!lst) { return; }
-
+/*
             var lstview = '<ul>';
             for(var i=0; i<lst.length; i++){
-              lstview += '<li><a target="_new" href="/snap/snap.html#open:projects/'+lst[i]+'.xml">'+lst[i]+'</a></li>';
+              lstview += '<li><a target="_new" href="/snap/snap.html#open:projects/'+lst[i]+'/project.xml">'+lst[i]+'</a></li>';
             }
             lstview += '</ul>';
+*/
+            var lstview = '<table>';
+            var w = 5;
+            var h = lst.length / w;
+
+            for(var i=0; i< h ; i++){
+              lstview += mk_icon(lst[i]);
+            }
+            lstview += '</table>';
+
             $("[data-name='project-list']").html(lstview);
+        }
+
+        function mk_icon(name){
+          var icon;
+           icon  = '<p style="position: relative;">';
+           icon += '<a target="_new" href="/snap/snap.html#open:projects/'+name+'/project.xml">';
+           icon += '<img src="images/Blue.png" alt="'+name+'" /><br />';
+           icon += '</a>';
+           icon += ' <span style="position: absolute; top: 15px; left: 15px; width: 70px;">'+name+'</span>';
+           icon += '</p>';
+          return icon;
         }
 
         $(init);
@@ -68,6 +86,7 @@
     Command:<input type="text" data-name="message" size="20" />
     <hr />
     <div data-name="chat"></div>
+
   </div>
 
   <div style="width:45%;position:absolute;top:0px;left:50%;">
