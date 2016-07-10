@@ -17,7 +17,7 @@
             rtc.waitOpened(rtc);
 
             chat('Connect to server');
-            setTimeout(getProjectList, 1000);
+            getProjectList();
         }
 
         function press(event) {
@@ -41,7 +41,10 @@
         }
 
         function getProjectList() {
-            rtc.call("projects", updateProjectList);
+            var res = rtc.call("projects", updateProjectList);
+            if(res == -2){
+               setTimeout(getProjectList, 500);
+            }
         }
 
         function updateProjectList(lst) {

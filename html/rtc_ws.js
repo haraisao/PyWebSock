@@ -163,8 +163,15 @@ RtcWs.prototype ={
       console.log("Over requests...");
     }else{
       this.reply_queue[id]=rfunc;
-      this.send(JSON.stringify({"request_seq": id, "args": msg}));
+      try{
+        this.send(JSON.stringify({"request_seq": id, "args": msg}));
+      }catch(e){
+        console.log("Error in call, fail to send message");
+        this.release_seq(id)
+        return -2;
+      }
     }
+    return id;
   },
 
   call_reply: function(seq, args) {
