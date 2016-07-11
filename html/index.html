@@ -43,26 +43,26 @@
         function getProjectList() {
             var res = rtc.call("projects", updateProjectList);
             if(res == -2){
-               setTimeout(getProjectList, 500);
+               setTimeout(getProjectList, 100);
             }
         }
 
         function updateProjectList(lst) {
 
             if(!lst) { return; }
-/*
-            var lstview = '<ul>';
-            for(var i=0; i<lst.length; i++){
-              lstview += '<li><a target="_new" href="/snap/snap.html#open:projects/'+lst[i]+'/project.xml">'+lst[i]+'</a></li>';
-            }
-            lstview += '</ul>';
-*/
+            console.log(lst);
             var lstview = '<table>';
             var w = 5;
             var h = lst.length / w;
+            var n;
 
             for(var i=0; i< h ; i++){
-              lstview += mk_icon(lst[i]);
+              n = i*w;
+              lstview += '<tr>';
+              for(var j=0; j< w && lst.length > n+j; j++){
+                lstview += '<td>'+ mk_icon(lst[n+j]) +'</td>';
+              }
+              lstview += '</tr>';
             }
             lstview += '</table>';
 

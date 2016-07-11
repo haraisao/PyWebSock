@@ -158,6 +158,7 @@ RtcWs.prototype ={
   },
 
   call: function(msg, rfunc=null) {
+    if(this.webSocket.state != 'Opened') { return -2; }
     var id = this.request_seq();
     if (id < 0){
       console.log("Over requests...");
