@@ -34,6 +34,7 @@ class ws_sample(comm.WebSocketCommand):
     try:
       if msg == 'projects':
         flist = os.listdir(self.reader.dirname +'/snap/projects')
+        flist.sort()
         self.sendDataFrame(json.dumps({'reply_seq':seq, 'result': flist}))
     except:
       print "ERROR in rpc"

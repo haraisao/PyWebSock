@@ -44,6 +44,7 @@ RtcWs.prototype ={
   next_seq:0,
   last_seq:9,
   reply_queue: [null, null, null, null, null, null, null, null, null, null],
+  list_w:5,
   processEvents: strundefined,
 
   genId: function(){
@@ -208,6 +209,7 @@ RtcWs.prototype ={
        }
        return null;
      }catch(e){
+       console.log(e);
        eval(msg);
      }
      return null;
@@ -227,6 +229,43 @@ RtcWs.prototype ={
     }
     return null;
   },
+
+  getProjectList: function(func, ms) {
+    var res = this.call("projects", func);
+    if(res == -2){
+      setTimeout(function(){ this.getProjectList(func) }, ms);
+    }
+  },
+
+  mkProjectList: function(lst) {
+    if(!lst) { return ""; }
+    var h = lst.length / this.list_w;
+    var n;
+
+    var lstview = '<table>';
+    for(var i=0; i< h ; i++){
+      n = i*this.list_w;
+      lstview += '<tr>';
+      for(var j=0; j < this.list_w && lst.length > n+j; j++){
+        lstview += '<td>'+ this.mk_icon(lst[n+j]) +'</td>';
+      }
+      lstview += '</tr>';
+    }
+    lstview += '</table>';
+    return lstview;
+  },
+
+  mk_icon: function(name){
+    var icon;
+    icon  = '<p style="position: relative;">';
+    icon += '<a target="_new" href="/snap/snap.html#open:projects/'+name+'/project.xml">';
+    icon += '<img src="images/Blue.png" alt="'+name+'" /><br />';
+    icon += '</a>';
+    icon += ' <span style="position: absolute; top: 15px; left: 15px; width: 70px;">'+name+'</span>';
+    icon += '</p>';
+    return icon;
+  },
+
 
 };
 
