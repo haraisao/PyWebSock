@@ -237,6 +237,14 @@ RtcWs.prototype ={
     }
   },
 
+  callSyncFunction: function(cmd, func, ms) {
+    var res = this.call(cmd, func);
+    if(res == -2){
+      setTimeout(function(){ this.callSyncFunction(func) }, ms);
+    }
+  },
+
+
   mkProjectList: function(lst) {
     if(!lst) { return ""; }
     var h = lst.length / this.list_w;

@@ -36,21 +36,27 @@ class ws_sample(comm.WebSocketCommand):
         flist = os.listdir(self.reader.dirname +'/snap/projects')
         flist.sort()
         self.sendDataFrame(json.dumps({'reply_seq':seq, 'result': flist}))
+      if msg == 'exit':
+        self.sendDataFrame(json.dumps({'reply_seq':seq, 'result': 'close'}))
+        exit()
     except:
       print "ERROR in rpc"
     return
 
 ###################
 def exit():
+    global srv
     srv.terminate()
     sys.exit()
 
 def main():
     global srv
-    srv = comm.create_httpd(8080, "html", ws_sample)
+    srv = comm.create_httpd(8080, "html", ws_sample, "")
+    comm.daemonize()
     srv.start()
     return srv
 
 if __name__ == '__main__' :
-  main()
+  srv=main()
+#  comm.daemonize()
 

@@ -1391,10 +1391,38 @@ class seqManager():
     return res
 
 
+def daemonize():
+  try:
+    pid=os.fork()
+  except:
+    print "ERROR in fork1"
+
+  if pid > 0:
+    os._exit(0)
+
+  try:
+    os.setsid()
+  except:
+    print "ERROR in setsid"
+
+  try:
+    pid=os.fork()
+  except:
+    print "ERROR in fork2"
+
+  if pid > 0:
+    os._exit(0)
+
+  os.umask(0)
+  os.close(sys.stdin.fileno())
+  os.close(sys.stdout.fileno())
+  os.close(sys.stderr.fileno())
+
 ######################################
 #  HTTP Server
 #
-def create_httpd(num=80, top="html", command=WebSocketCommand):
+def create_httpd(num=80, top="html", command=WebSocketCommand, host="localhost"):
   reader = HttpReader(None, top)
   reader.WSCommand = command(reader)
-  return SocketServer(reader, "Web", "localhost", num)
+  return SocketServer(reader, "Web", host, num)
+#  return SocketServer(reader, "Web", socket.gethostname(), num)
