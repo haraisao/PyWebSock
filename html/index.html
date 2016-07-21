@@ -4,20 +4,16 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>RTC-Snap! interface</title>
-    <link type="text/css" rel="stylesheet" href="css/menu.css">
+    <link type="text/css" rel="stylesheet" href="css/mmenu.css">
+    <link type="text/css" rel="stylesheet" href="css/jquery.mmenu.all.css">
     <script type="text/javascript" src="/jquery-3.0.0.min.js"></script>
+    <script type="text/javascript" src="/jquery.mmenu.all.min.js"></script>
     <script type="text/javascript">
-       $(function(){
-         $("#menu li").hover(function(){
-            $("ul", this).show();
-         },
-         function(){
-            $("ul",this).hide();
-         });
-        });
+	$(function() {
+		$('nav#menu').mmenu();
+	})
     </script>
     <script type="text/javascript" src="/snap/rtc_ws.js"></script>
-
     <script type="text/javascript">
         var rtc = new RtcWs();
         var max_lines = 25;
@@ -62,40 +58,47 @@
     </script>
 </head>
 <body>
-  <div class="menubar">
-    <ul id ="menu">
+<div id="page">
+  <div class=header>
+    <a href="#menu"></a>
+    RTC-Snap! Demo
+  </div>
+
+  <div id="content">
+    Command:<input type="text" data-name="message" size="20" />
+    <hr />
+    <div data-name="disp" ></div>
+  </div>
+
+  <nav id="menu">
+    <ul>
       <li><a href="#">Main</a>
-        <ul class="sub">
+        <ul>
           <li><a href="projects.html" target="project">Open Project List</a></li>
           <li><a href="#">Exit Server</a></li>
         </ul>
       </li>
       <li><a href="#">Edit</a>
-        <ul class="sub">
+        <ul>
           <li><a href="#">Config...</a></li>
         </ul>
       </li>
       <li><a href="#">Tool</a>
-        <ul class="sub">
+        <ul>
           <li><a href="#">RTC Builder</a></li>
           <li><a href="#">Snap!</a></li>
         </ul>
       </li>
       <li><a href="#">Help</a>
-        <ul class="sub">
+        <ul>
           <li><a href="#">About...</a></li>
         </ul>
       </li>
     </ul>
-  </div>
-  <div style="padding-top:10px;">
-    Command:<input type="text" data-name="message" size="20" />
-    <hr />
-    <div data-name="disp" ></div>
+  </nav>
 
-  </div>
- <p />
-  <div id="footer">&nbsp;Copyright(C) 2016 Isao Hara, All Rights Reversed</div>
 
+ <div class="footer">Copyright(C) 2016 Isao Hara, All Rights Reversed</div>
+</div>
 </body>
 </html>
