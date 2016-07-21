@@ -20,14 +20,12 @@
 
 var
   version = "0.1",
-  strundefined = typeof undefined,
+  str_undefined = typeof undefined,
 
   RtcWs = function( parent ){
     this.parent = parent;
     this.genId();
     this.state="Generating"
-    
-    //return new RTC.fn.init( selector, context );
   };
 
 RtcWs.prototype ={
@@ -40,14 +38,16 @@ RtcWs.prototype ={
   state: null,
   timer_id: null,
   debug_mode: false,
+
   seq_queue: [1,2,3,4,5,6,7,8,9,-1],
   next_seq:0,
   last_seq:9,
   reply_queue: [null, null, null, null, null, null, null, null, null, null],
-  list_w:5,
-  processEvents: strundefined,
 
-  genId: function(){
+  list_w:5,
+  processEvents: str_undefined,
+
+  genId: function(){ /* generate UUID(random) */
      var i, random;
      this.id ="";
      for (i = 0; i < 32; i++){
@@ -62,12 +62,12 @@ RtcWs.prototype ={
      return this.id
   },
 
-  showId: function(){
+  showId: function(){ 
      if( this.id == null) { this.genId(); }
      alert(this.id);
   },
 
-  open: function(uri) {
+  open: function(uri) { /* open Websocket */
     if (this.webSocket == null) {
         this.webSocket = new WebSocket(uri);
 
@@ -94,6 +94,7 @@ RtcWs.prototype ={
     },500);
   },
 
+  /* event handlers for WebSocket */
   onOpen: function(event) {
     if(this.rtc.debug_mode){ console.log("Open webSocket"); }
     this.state='onOpen';
@@ -133,6 +134,7 @@ RtcWs.prototype ={
      this.webSocket = null;
   },
 
+  /* send message through WebSocket */
   send: function(message) {
      if (message && this.webSocket) {
        this.webSocket.send(message);
@@ -158,6 +160,7 @@ RtcWs.prototype ={
     }
   },
 
+  /* call functions */
   call: function(msg, rfunc=null) {
     if(this.webSocket.state != 'Opened') { return -2; }
     var id = this.request_seq();
@@ -185,6 +188,16 @@ RtcWs.prototype ={
     this.release_seq(seq);
     return null;
   },
+
+  /*******************/
+  callSyncFunc: function(cmd, func, ms, obj) {
+    var res = obj.call(cmd, func);
+
+    if(res == -2){
+      setTimeout(obj.callSyncFunc, ms, cmd, func, ms, obj);
+    }
+  },
+  /********************/
 
   func_exec: function(msg) {
      try{
@@ -215,6 +228,7 @@ RtcWs.prototype ={
      return null;
   },
 
+  /*   broadcats message to Snap!(BYBO) */
   broadcast: function(msg) {
     try{
       if( this.parent ){
@@ -230,21 +244,12 @@ RtcWs.prototype ={
     return null;
   },
 
+  /*  get list of Snap! projects */
   getProjectList: function(func, ms) {
-    var res = this.call("projects", func);
-    if(res == -2){
-      setTimeout(function(){ this.getProjectList(func) }, ms);
-    }
+    this.callSyncFunc("projects", func, ms, this);
   },
 
-  callSyncFunction: function(cmd, func, ms) {
-    var res = this.call(cmd, func);
-    if(res == -2){
-      setTimeout(function(){ this.callSyncFunction(func) }, ms);
-    }
-  },
-
-
+  /* create icons */
   mkProjectList: function(lst) {
     if(!lst) { return ""; }
     var h = lst.length / this.list_w;
@@ -273,14 +278,13 @@ RtcWs.prototype ={
     icon += '</p>';
     return icon;
   },
+  /*******************/
+};  /** End of the prototype of RtcWs **/
 
-
-};
-
-
-if ( typeof noGlobal === strundefined ){
-  window.RtcWs = RtcWs;
-}
+  if ( typeof noGlobal === str_undefined ){
+    window.RtcWs = RtcWs;
+  }
 
   return RtcWs;
+
 }));

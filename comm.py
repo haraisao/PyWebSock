@@ -17,6 +17,9 @@ import struct
 import copy
 import json
 
+# for ssl
+import ssl
+
 # for WebSocket
 import base64
 import random
@@ -31,7 +34,7 @@ class SocketPort(threading.Thread):
   #
   # Contsructor
   #
-  def __init__(self, reader, name, host, port):
+  def __init__(self, reader, name, host, port, ssl=False):
     threading.Thread.__init__(self)
     self.reader = reader
     if self.reader:
@@ -46,6 +49,18 @@ class SocketPort(threading.Thread):
     self.server_adaptor = None
     self.mainloop = False
     self.debug = False
+    self.ssl = ssl
+
+    if self.ssl == True:
+      self.ssl_dir="ssl/"
+      self.ssl_cert=self.ssl_dir + "server.crt"
+      self.ssl_key=self.ssl_dir + "server.key"
+
+      # for 2.7 or lator
+      #
+      #self.context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+      #self.context.load_cert_chain(certfile=self.ssl_cert, keyfile=self.ssl_key)
+
   #
   #  Set values...
   #
@@ -86,7 +101,7 @@ class SocketPort(threading.Thread):
       self.close()
       return 0
     except:
-      print "Error in connect " , self.host, self.port
+      print "Error in bind " , self.host, self.port
       self.close()
       return -1
 
@@ -216,7 +231,10 @@ class SocketPort(threading.Thread):
   #
   def close(self):
     while self.com_ports:
-      self.com_ports.pop().close()
+      sock=self.com_ports.pop()
+      sock.shutdown(socket.SHUT_RDWR)
+      sock.close()
+#      self.com_ports.pop().close()
 
     if self.server_adaptor:
       self.server_adaptor.remove_service(self)
@@ -254,8 +272,8 @@ class SocketServer(SocketPort):
   #
   # Constructor
   #
-  def __init__(self, reader, name, host, port, debug=False):
-    SocketPort.__init__(self, reader, name, host, port)
+  def __init__(self, reader, name, host, port, ssl=False, debug=False):
+    SocketPort.__init__(self, reader, name, host, port, ssl)
     self.debug = debug
 
     self.setServerMode()
@@ -272,7 +290,16 @@ class SocketServer(SocketPort):
       name = self.name+":service:%d" % self.service_id
       reader = self.reader.duplicate()
 
-      newadaptor = SocketService(self, reader, name, conn, addr)
+      if self.ssl == True:
+        # for 2.7 or lator
+        #sslconn = self.context.wrap_socket(conn, server_side=True)
+        sslconn = ssl.wrap_socket(conn, server_side=True,
+			 certfile=self.ssl_cert, keyfile=self.ssl_key)
+
+        newadaptor = SocketService(self, reader, name, sslconn, addr)
+      else:
+        newadaptor = SocketService(self, reader, name, conn, addr)
+
       if flag :
         newadaptor.start()
       return newadaptor
@@ -1421,8 +1448,9 @@ def daemonize():
 ######################################
 #  HTTP Server
 #
-def create_httpd(num=80, top="html", command=WebSocketCommand, host="localhost"):
+def create_httpd(num=80, top="html", command=WebSocketCommand, host="", ssl=False):
+  if type(num) == str: num = int(num)
   reader = HttpReader(None, top)
   reader.WSCommand = command(reader)
-  return SocketServer(reader, "Web", host, num)
+  return SocketServer(reader, "Web", host, num, ssl)
 #  return SocketServer(reader, "Web", socket.gethostname(), num)

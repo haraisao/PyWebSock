@@ -8,52 +8,58 @@
     <script type="text/javascript" src="/snap/rtc_ws.js"></script>
 
     <script type="text/javascript">
-        var uri = "ws://" + location.host + "/ws/rpc";
+        var wsHost = (("https:" == document.location.protocol) ? "wss://" : "ws://");
+        var uri = wsHost + location.host + "/ws/rpc";
+
         var rtc = new RtcWs();
-        var list_w = 5;
+        var max_lines = 25;
 
         function init() {
-            $("[data-name='message']").keypress(press);
-            rtc.open(uri);
-            rtc.waitOpened(rtc);
+          $("[data-name='message']").keypress(press);
+          rtc.open(uri);
+          rtc.waitOpened(rtc);
 
-            chat('Connect to server');
-            getProjectList();
+          show_msg('Connect to server');
+          rtc.getProjectList(updateProjectList, 250);
         }
 
+        /* key input event handler */
         function press(event) {
-            if (event && event.which == 13) {
-                var message = $("[data-name='message']").val();
-                  chat(message);
-                  eval(message);
-                  //rtc.send(message);
-                  $("[data-name='message']").val("");
-            }
+          if (event && event.which == 13) {
+            var message = $("[data-name='message']").val();
+            proc_press(message);
+            $("[data-name='message']").val("");
+          }
         }
 
-        function chat(message) {
-            var chats = $("[data-name='chat']").find("div");
-            while (chats.length >= 25) {
-                chats = chats.last().remove();
-            }
-            var msgtag = $("<div>").text(message);
-            $("[data-name='chat']").prepend(msgtag);
-            return message;
+        function proc_press(message) {
+          show_msg(message);
+          eval(message);
+          //rtc.send(message);
         }
 
-        function getProjectList() {
-          rtc.getProjectList(updateProjectList, 100);
+        /** dispay message **/
+        function show_msg(message) {
+          var msgs = $("[data-name='disp']").find("div");
+          while (msgs.length >= max_lines) {
+            msgs = msgs.last().remove();
+          }
+          var msgtag = $("<div>").text(message);
+          $("[data-name='disp']").prepend(msgtag);
+          return message;
         }
 
+        /**** Commands ***/
         function updateProjectList(lst) {
-            lstview = rtc.mkProjectList(lst);
-            $("[data-name='project-list']").html(lstview);
+          lstview = rtc.mkProjectList(lst);
+          $("[data-name='project-list']").html(lstview);
         }
 
         function exit() {
           rtc.call('exit', null);
         }
 
+        /** call initialize **/
         $(init);
           
     </script>
@@ -62,7 +68,7 @@
   <div style="width:45%;position:absolute-block;top:0px;left:0%;">
     Command:<input type="text" data-name="message" size="20" />
     <hr />
-    <div data-name="chat"></div>
+    <div data-name="disp"></div>
 
   </div>
 

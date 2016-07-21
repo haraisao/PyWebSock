@@ -1,8 +1,16 @@
+#
+#
+#
 import os
 import sys
 import json
+import argparse
+
 import comm
 
+#
+#  WebSocketCommand
+#
 class ws_sample(comm.WebSocketCommand):
   def __init__(self, rdr):
     comm.WebSocketCommand.__init__(self, rdr, "")
@@ -44,19 +52,33 @@ class ws_sample(comm.WebSocketCommand):
     return
 
 ###################
+# Global functions
+#
 def exit():
     global srv
     srv.terminate()
     sys.exit()
 
-def main():
+def main(port=8080, daemon=False, ssl=False):
     global srv
-    srv = comm.create_httpd(8080, "html", ws_sample, "")
-    comm.daemonize()
+    srv = comm.create_httpd(port, "html", ws_sample, "", ssl)
+
+    if daemon == True :
+      print "Start as daemon"
+      comm.daemonize()
+    else:
+      pass
+
     srv.start()
     return srv
 
 if __name__ == '__main__' :
-  srv=main()
-#  comm.daemonize()
+  parser = argparse.ArgumentParser(description='Http server for WebSocket')
+  parser.add_argument('-p','--port', action='store', default=8080)
+  parser.add_argument('-d', '--daemon', action='store_true', default='False')
+  parser.add_argument('--ssl', action='store_true', default='False')
+  parser.add_argument('--version', action='version', version='%(prog)s 0.1')
+  args = parser.parse_args()
+
+  srv=main(args.port, args.daemon, args.ssl)
 
