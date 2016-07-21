@@ -4,7 +4,18 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>RTC-Snap! interface</title>
+    <link type="text/css" rel="stylesheet" href="css/menu.css">
     <script type="text/javascript" src="/jquery-3.0.0.min.js"></script>
+    <script type="text/javascript">
+       $(function(){
+         $("#menu li").hover(function(){
+            $("ul", this).show();
+         },
+         function(){
+            $("ul",this).hide();
+         });
+        });
+    </script>
     <script type="text/javascript" src="/snap/rtc_ws.js"></script>
 
     <script type="text/javascript">
@@ -17,7 +28,6 @@
           rtc.waitOpened(rtc);
 
           show_msg('Connect to server');
-          rtc.getProjectList(updateProjectList, 250);
         }
 
         /* key input event handler */
@@ -46,36 +56,46 @@
           return message;
         }
 
-        /**** Commands ***/
-        function updateProjectList(lst) {
-          lstview = rtc.mkProjectList(lst);
-          $("[data-name='project-list']").html(lstview);
-        }
-
-        function exit() {
-          rtc.call('exit', null);
-        }
-
         /** call initialize **/
         $(init);
           
     </script>
 </head>
 <body>
-  <div style="width:45%;position:absolute-block;top:0px;left:0%;">
+  <div class="menubar">
+    <ul id ="menu">
+      <li><a href="#">Main</a>
+        <ul class="sub">
+          <li><a href="projects.html" target="project">Open Project List</a></li>
+          <li><a href="#">Exit Server</a></li>
+        </ul>
+      </li>
+      <li><a href="#">Edit</a>
+        <ul class="sub">
+          <li><a href="#">Config...</a></li>
+        </ul>
+      </li>
+      <li><a href="#">Tool</a>
+        <ul class="sub">
+          <li><a href="#">RTC Builder</a></li>
+          <li><a href="#">Snap!</a></li>
+        </ul>
+      </li>
+      <li><a href="#">Help</a>
+        <ul class="sub">
+          <li><a href="#">About...</a></li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+  <div style="padding-top:10px;">
     Command:<input type="text" data-name="message" size="20" />
     <hr />
-    <div data-name="disp"></div>
+    <div data-name="disp" ></div>
 
   </div>
-
-  <div style="width:45%;position:absolute;top:0px;left:50%;">
-  <h2>List of Projects</h2>
-  <button onClick="getProjectList();">Update List</button>
-  <button onClick="rtc.check_result();">Check</button>
-    <hr />
-    <div data-name="project-list"></div>
-  </div>
+ <p />
+  <div id="footer">&nbsp;Copyright(C) 2016 Isao Hara, All Rights Reversed</div>
 
 </body>
 </html>

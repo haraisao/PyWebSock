@@ -56,7 +56,6 @@ class ws_sample(comm.WebSocketCommand):
 #
 def exit():
     global srv
-    srv.close_service()
     srv.terminate()
     sys.exit()
 
@@ -81,5 +80,5 @@ if __name__ == '__main__' :
   parser.add_argument('--version', action='version', version='%(prog)s 0.1')
   args = parser.parse_args()
 
-  srv=main(args.port, args.daemon, args.ssl)
+  srv=main(int(args.port), args.daemon, args.ssl)
 

@@ -247,6 +247,7 @@ class SocketPort(threading.Thread):
   #  Stop background job
   #
   def terminate(self):
+    self.close_service()
     self.mainloop = False
     self.close()
 

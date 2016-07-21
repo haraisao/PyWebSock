@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>RTC-Snap! interface</title>
+    <script type="text/javascript" src="/jquery-3.0.0.min.js"></script>
+    <script type="text/javascript" src="/snap/rtc_ws.js"></script>
+
+    <script type="text/javascript">
+        var rtc = new RtcWs();
+        var max_lines = 25;
+
+        function init() {
+          rtc.open('rpc');
+          rtc.waitOpened(rtc);
+          getProjectList();
+        }
+
+        /**** Commands ***/
+        function getProjectList() {
+          rtc.getProjectList(updateProjectList, 250);
+        }
+
+        function updateProjectList(lst) {
+          lstview = rtc.mkProjectList(lst);
+          $("[data-name='project-list']").html(lstview);
+        }
+
+        function exit() {
+          rtc.call('exit', null);
+          $("[data-name='project-list']").html("");
+          $("#menu").html("Server closed...");
+        }
+
+        /** call initialize **/
+        $(init);
+          
+    </script>
+</head>
+<body>
+  <h2>List of Projects</h2>
+   <div id="menu">
+    <button onClick="getProjectList();">Update List</button>
+    <button onClick="exit();">Exit Server</button>
+    <hr />
+   </div>
+    <div data-name="project-list"></div>
+
+</body>
+</html>
