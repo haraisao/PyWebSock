@@ -23,9 +23,11 @@ var
   str_undefined = typeof undefined,
 
   RtcWs = function( parent ){
+    this.ws_host = (("https:" == document.location.protocol) ? "wss://" : "ws://");
+    this.base_uri = this.ws_host + location.host + "/ws/";
     this.parent = parent;
     this.genId();
-    this.state="Generating"
+    this.state="Generating";
   };
 
 RtcWs.prototype ={
@@ -38,6 +40,10 @@ RtcWs.prototype ={
   state: null,
   timer_id: null,
   debug_mode: false,
+
+  ws_host : "ws://",
+  base_uri: null,
+  uri: null,
 
   seq_queue: [1,2,3,4,5,6,7,8,9,-1],
   next_seq:0,
@@ -67,9 +73,14 @@ RtcWs.prototype ={
      alert(this.id);
   },
 
-  open: function(uri) { /* open Websocket */
+  getUri: function(){ 
+    return this.uri;
+  },
+
+  open: function(cmd) { /* open Websocket */
     if (this.webSocket == null) {
-        this.webSocket = new WebSocket(uri);
+        this.uri = this.base_uri + cmd
+        this.webSocket = new WebSocket(this.uri);
 
         this.webSocket.onopen = this.onOpen;
         this.webSocket.onmessage = this.onMessage;

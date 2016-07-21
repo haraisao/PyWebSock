@@ -8,15 +8,12 @@
     <script type="text/javascript" src="/snap/rtc_ws.js"></script>
 
     <script type="text/javascript">
-        var wsHost = (("https:" == document.location.protocol) ? "wss://" : "ws://");
-        var uri = wsHost + location.host + "/ws/rpc";
-
         var rtc = new RtcWs();
         var max_lines = 25;
 
         function init() {
           $("[data-name='message']").keypress(press);
-          rtc.open(uri);
+          rtc.open('rpc');
           rtc.waitOpened(rtc);
 
           show_msg('Connect to server');
