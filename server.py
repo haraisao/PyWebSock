@@ -56,6 +56,7 @@ class ws_sample(comm.WebSocketCommand):
 #
 def exit():
     global srv
+    srv.close_service()
     srv.terminate()
     sys.exit()
 
