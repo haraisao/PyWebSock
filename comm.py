@@ -1424,6 +1424,7 @@ def daemonize():
     pid=os.fork()
   except:
     print "ERROR in fork1"
+    sys.exit()
 
   if pid > 0:
     os._exit(0)

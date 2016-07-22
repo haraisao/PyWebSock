@@ -59,9 +59,9 @@ def exit():
     srv.terminate()
     sys.exit()
 
-def main(port=8080, daemon=False, ssl=False):
+def main(port=8080, doc_root="html", daemon=False, ssl=False):
     global srv
-    srv = comm.create_httpd(port, "html", ws_sample, "", ssl)
+    srv = comm.create_httpd(port, doc_root, ws_sample, "", ssl)
 
     if daemon == True :
       print "Start as daemon"
@@ -77,8 +77,9 @@ if __name__ == '__main__' :
   parser.add_argument('-p','--port', action='store', default=8080)
   parser.add_argument('-d', '--daemon', action='store_true', default='False')
   parser.add_argument('--ssl', action='store_true', default='False')
+  parser.add_argument('--root', action='store', default='html')
   parser.add_argument('--version', action='version', version='%(prog)s 0.1')
   args = parser.parse_args()
 
-  srv=main(int(args.port), args.daemon, args.ssl)
+  srv=main(int(args.port), args.root, args.daemon, args.ssl)
 
