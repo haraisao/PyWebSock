@@ -289,6 +289,11 @@ RtcWs.prototype ={
     icon += '</p>';
     return icon;
   },
+
+  exit: function() {
+    this.call("exit", null);
+  },
+
   /*******************/
 };  /** End of the prototype of RtcWs **/
 
