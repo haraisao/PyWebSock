@@ -1,4 +1,5 @@
 #!/bin/bash
+PYWEB_DIR=/usr/local/src/PyWebSock
 
-cd /usr/local/src/PyWebSock
-python server.py
+
+/usr/bin/python ${PYWEB_DIR}/server.py --root ${PYWEB_DIR}/html

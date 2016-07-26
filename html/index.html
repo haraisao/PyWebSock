@@ -8,12 +8,11 @@
     <link type="text/css" rel="stylesheet" href="css/jquery.mmenu.all.css">
     <script type="text/javascript" src="js/jquery-3.0.0.min.js"></script>
     <script type="text/javascript" src="js/jquery.mmenu.all.min.js"></script>
-    <script type="text/javascript">
-	$(function() {
-		$('nav#menu').mmenu();
-	})
-    </script>
+    <script type="text/javascript" src="js/canvas.js"></script>
+    <script type="text/javascript" src="js/rtse.js"></script>
+
     <script type="text/javascript" src="/snap/rtc_ws.js"></script>
+
     <script type="text/javascript">
         var rtc = new RtcWs();
         var max_lines = 25;
@@ -53,6 +52,10 @@
         }
 
         /** call initialize **/
+	$(function() {
+		$('nav#menu').mmenu();
+	})
+
         $(init);
           
     </script>
