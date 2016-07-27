@@ -6,6 +6,7 @@ import sys
 import json
 import argparse
 
+import logging
 import comm
 
 #
@@ -60,7 +61,7 @@ def exit():
     srv.terminate()
     sys.exit()
 
-def main(port=8080, doc_root="html", daemon=False, ssl=False):
+def main(port=8080, doc_root="html", daemon=False, ssl=False, debug=False):
     global srv
     srv = comm.create_httpd(port, doc_root, ws_sample, "", ssl)
 
@@ -70,6 +71,8 @@ def main(port=8080, doc_root="html", daemon=False, ssl=False):
     else:
       pass
 
+    if debug==True:
+      comm.logger.setLevel(logging.DEBUG)
     srv.start()
     return srv
 
@@ -79,8 +82,9 @@ if __name__ == '__main__' :
   parser.add_argument('-d', '--daemon', action='store_true', default='False')
   parser.add_argument('--ssl', action='store_true', default='False')
   parser.add_argument('--root', action='store', default='html')
+  parser.add_argument('--debug', action='store_true')
   parser.add_argument('--version', action='version', version='%(prog)s 0.1')
   args = parser.parse_args()
 
-  srv=main(int(args.port), args.root, args.daemon, args.ssl)
+  srv=main(int(args.port), args.root, args.daemon, args.ssl, args.debug)
 

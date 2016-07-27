@@ -33,7 +33,7 @@ import logging
 import logging.handlers
 
 logger=logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 FORMATTER='%(levelname)s:%(asctime)s: [%(name)s] %(message)s'
 
 ch = logging.StreamHandler()
@@ -1454,8 +1454,9 @@ class seqManager():
     self.release(val)
     return res
 
-def getLogger(m_name, fname=""):
+def getLogger(m_name, fname="", level=logging.INFO):
   _logger=logging.getLogger(m_name)
+  _logger.setLevel(level)
   if fname:
      log_handler = logging.handlers.RotatingFileHandler(fname, maxBytes=20000000, backupCount=5)
      log_handler.setLevel(logging.DEBUG)
@@ -1467,9 +1468,9 @@ def getLogger(m_name, fname=""):
   _logger.addHandler(log_handler)
   return _logger
 
-def daemonize(fname="comm.log"):
+def daemonize(fname="comm.log", log_level=logging.INFO):
   __logger = getLogger(__name__, fname)
-  __logger.setLevel(logging.INFO)
+  __logger.setLevel(log_level)
   try:
     pid=os.fork()
   except:
