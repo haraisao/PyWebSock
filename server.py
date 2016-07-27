@@ -48,7 +48,7 @@ class ws_sample(comm.WebSocketCommand):
         self.sendDataFrame(json.dumps({'reply_seq':seq, 'result': 'close'}))
         exit()
     except:
-      print "ERROR in rpc"
+      self.logger.error( "ERROR in rpc" )
     return
 
 ###################
@@ -65,7 +65,7 @@ def main(port=8080, doc_root="html", daemon=False, ssl=False):
     srv = comm.create_httpd(port, doc_root, ws_sample, "", ssl)
 
     if daemon == True :
-      print "Start as daemon"
+      comm.logger.info( "Start as daemon" )
       comm.daemonize()
     else:
       pass

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 #
 #  PyWebScok Library
 #  Communication Adaptor for WebSocket
@@ -26,6 +27,22 @@ import random
 from hashlib import sha1
 
 #
+# logger
+# loglevel: NOTEST:0, DEBUG:10, INFO:20. WARNING:30, ERROR:40, CRITICAL:50
+import logging
+import logging.handlers
+
+logger=logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+FORMATTER='%(levelname)s:%(asctime)s: [%(name)s] %(message)s'
+
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+ch.setFormatter(logging.Formatter(FORMATTER))
+
+logger.addHandler(ch)
+
+#
 # Raw Socket Adaptor
 #
 #   threading.Tread <--- SocketPort
@@ -36,6 +53,7 @@ class SocketPort(threading.Thread):
   #
   def __init__(self, reader, name, host, port, ssl=False):
     threading.Thread.__init__(self)
+    self.module_name=__name__+'.SocketPort'
     self.reader = reader
     if self.reader:
       self.reader.setOwner(self)
@@ -49,6 +67,7 @@ class SocketPort(threading.Thread):
     self.server_adaptor = None
     self.mainloop = False
     self.debug = False
+    self.logger = logger
     self.ssl = ssl
 
     if self.ssl == True:
@@ -87,6 +106,10 @@ class SocketPort(threading.Thread):
   def getCommand(self):
     return self.reader.command
 
+  def setLogger(self, fname=""):
+    self.logger=getLogger(self.module_name, fname)
+    return
+
   #
   # Bind socket 
   #
@@ -97,11 +120,11 @@ class SocketPort(threading.Thread):
       self.socket.bind((self.host, self.port))
 
     except socket.error:
-      print "Connection error"
+      self.logger.error("Connection error")
       self.close()
       return 0
     except:
-      print "Error in bind " , self.host, self.port
+      self.logger.error("Error in bind %s:%d" ,self.host, self.port)
       self.close()
       return -1
 
@@ -119,17 +142,17 @@ class SocketPort(threading.Thread):
       self.socket.connect((self.host, self.port))
 
     except socket.error:
-      print "Connection error"
+      self.logger.error("Connection error")
       self.close()
       return 0
 
     except:
-      print "Error in connect " , self.host, self.port
+      self.logger.error("Error in connect %s:%d ", self.host, self.port)
       self.close()
       return -1
 
     if async :
-      print "Start read thread ",self.name
+      self.logger.error("Start read thread %s", self.name)
       self.start()
 
     return 1
@@ -161,7 +184,7 @@ class SocketPort(threading.Thread):
           return  -1
 
     except socket.error:
-      print "socket.error in receive_data"
+      self.logger.eror("socket.error in receive_data")
       self.terminate()
 
     except:
@@ -196,7 +219,7 @@ class SocketPort(threading.Thread):
   #  Event loop: this metho should be overwrite by suceessing classes
   #
   def accept_service_loop(self, lno=5, timeout=1.0):
-    print "No accept_service_loop defined"
+    self.logger.error("No accept_service_loop defined")
 
     return 
 
@@ -214,10 +237,10 @@ class SocketPort(threading.Thread):
         self.reader.parse(data)
 
       else :
-        print "Umm...:",self.name
-        print data
+        self.logger.error( "Umm...: %s", self.name)
+        self.logger.error( data)
 
-    if self.debug : print "Read thread terminated:",self.name
+    self.logger.debug("Read thread terminated: %s", self.name)
 
   #
   #  close socket
@@ -256,13 +279,13 @@ class SocketPort(threading.Thread):
   #
   def send(self, msg, name=None):
     if not self.socket :
-      print "Error: Not connected"
+      self.logger.error( "Error: Not connected")
       return None
     try:
       self.socket.sendall(msg)
 
     except socket.error:
-      print "Socket error in send"
+      self.logger.error( "Socket error in send")
       self.close()
 
 ############################################
@@ -276,6 +299,7 @@ class SocketServer(SocketPort):
   def __init__(self, reader, name, host, port, ssl=False, debug=False):
     SocketPort.__init__(self, reader, name, host, port, ssl)
     self.debug = debug
+    self.module_name=__name__+'.SocketServer'
 
     self.setServerMode()
     self.cometManager = CometManager(self)
@@ -306,7 +330,7 @@ class SocketServer(SocketPort):
       return newadaptor
 
     except:
-      print "ERROR in accept_service"
+      self.logger.error("ERROR in accept_service")
       pass
 
     return None
@@ -316,7 +340,7 @@ class SocketServer(SocketPort):
   #      [Overwrite super's method]
   #
   def accept_service_loop(self, lno=5, timeout=1.0):
-    print "Wait for accept: %s(%s:%d)" % (self.name, self.host, self.port)
+    self.logger.info( "Wait for accept: %s(%s:%d)" % (self.name, self.host, self.port))
     self.socket.listen(lno)
     while self.mainloop:
       res = self.wait_for_read(timeout) 
@@ -327,7 +351,7 @@ class SocketServer(SocketPort):
       else:
         pass
     
-    print "Terminate all service %s(%s:%d)" % (self.name, self.host, self.port)
+    self.logger.info( "Terminate all service %s(%s:%d)" % (self.name, self.host, self.port))
     self.close_service()
     self.close()
     return 
@@ -349,8 +373,9 @@ class SocketServer(SocketPort):
   #
   def remove_service(self, adaptor):
      try:
-       if self.debug :  print "Terminate Service %s" % adaptor.name
-       self.com_ports.remove(adaptor)
+       if len(self.com_ports) > 0:
+         self.com_ports.remove(adaptor)
+         self.logger.debug( "Terminate Service %s" % adaptor.name )
      except:
        pass
 
@@ -373,7 +398,7 @@ class SocketServer(SocketPort):
         res.append(port.reader.command)
       return res
     except:
-      print "Error in getWSList()"
+      self.logger.error( "Error in getWSList()")
       return None
 
   def getWS(self, n):
@@ -381,7 +406,7 @@ class SocketServer(SocketPort):
     try:
       return lst[n]
     except:
-      print "Error: invalid index in getWS()"
+      self.logger.error( "Error: invalid index in getWS()")
       return None 
    
 #
@@ -393,6 +418,7 @@ class SocketService(SocketPort):
   #
   def __init__(self, server, reader, name, sock, addr):
     SocketPort.__init__(self, reader, name, addr[0], addr[1])
+    self.module_name=__name__+'.SocketService'
     self.socket = sock
     self.server_adaptor = server
     server.com_ports.append(self)
@@ -447,6 +473,7 @@ class CommReader:
   # Constructor
   #
   def __init__(self, owner=None, command=None):
+    self.module_name=__name__+'.CommReader'
     self._buffer = ""
     self.bufsize = 0
     self.current=0
@@ -457,13 +484,14 @@ class CommReader:
     else:
       self.command = command
     self.debug = False
+    self.logger = logger
 
   #
   #  parse received data, called by SocketPort
   #
   def parse(self, data):
     if self.debug:
-      print data
+      self.logger.debug( data )
     if data : self.appendBuffer( data )
     self.checkBuffer()
 
@@ -532,7 +560,7 @@ class CommReader:
         self.current = 0
         return True
     except:
-      print "ERR in checkBuffer"
+      self.logger.error( "ERR in checkBuffer")
       self._buffer=""
       pass
 
@@ -545,7 +573,7 @@ class CommReader:
     if self.owner :
       self.owner.send(self.response)
     else:
-      print "No owner"
+      self.logger.info( "No owner" )
 
     if flag:
       self.owner.close()
@@ -633,7 +661,6 @@ class HttpReader(CommReader):
         self.webSocketRequest(header, fname)
 
       else:
-        #print fname
         contents = get_file_contents(fname, self.dirname)
         
         ctype = get_content_type(fname)
@@ -750,6 +777,12 @@ class CommCommand:
     self.encpos=0
 
   #
+  #
+  def setLogger(self, fname=""):
+    self.logger=getLogger(self.module_name, fname)
+    return
+
+  #
   #  for buffer
   #
   def setBuffer(self, buff):
@@ -766,12 +799,12 @@ class CommCommand:
     self.bufsize = len(self.buff)
 
   def skipBuffer(self, n=0):
-      print "call skipBuffer %d" % n
+      self.logger.debug( "call skipBuffer %d" % n )
       data = ""
       if self.bufsize > n :
         data = self._buffer[:n]
         self.setBuffer(self._buffer[n:])
-      print data
+      self.logger.debug( data )
       return data
 
   #
@@ -804,7 +837,7 @@ class CommCommand:
     try:
       return self.reader.owner.name
     except:
-      print "Error in getMyServiceName()"
+      self.logger.error( "Error in getMyServiceName()")
       return None
 
   def getComPortNames(self):
@@ -813,7 +846,7 @@ class CommCommand:
       res = map(lambda n:n.name, comports)
       return res
     except:
-      print "Error in getComPortNames()"
+      self.logger.error( "Error in getComPortNames()")
       return None
 
   def getCommandList(self):
@@ -822,7 +855,7 @@ class CommCommand:
       res = map(lambda n:n.reader.command, comports)
       return res
     except:
-      print "Error in getCommandList()"
+      self.logger.error( "Error in getCommandList()")
       return None
 
 #############################################
@@ -836,6 +869,7 @@ class HttpCommand(CommCommand):
   def __init__(self, dirname=".", buff=''):
     CommCommand.__init__(self, buff)
     self.dirname=dirname
+    self.module_name=__name__+'.HttpCommand'
 
   #
   #
@@ -949,6 +983,7 @@ class WebSocketCommand(CommCommand):
   #
   def __init__(self, reader, func, buff=''):
     CommCommand.__init__(self, buff, reader)
+    self.module_name = __name__+'.WebSocketCommand'
     self.func_name = func
     self.current_data_frame = 0x01
     self.data=""
@@ -980,7 +1015,7 @@ class WebSocketCommand(CommCommand):
           res.append(port.reader.command)
       return res
     except:
-      print "Error in getWSList()"
+      self.logger.error( "Error in getWSList()")
       return None
 
   #
@@ -1057,7 +1092,7 @@ class WebSocketCommand(CommCommand):
               if self.requestReturn : self.syncQ.put(self.data['result'])
 
             else:
-              print "Error: invalid message"
+              self.logger.error( "Error: invalid message")
           else:
             self.callFunction(self.data)
 
@@ -1074,15 +1109,15 @@ class WebSocketCommand(CommCommand):
         pass
 
       elif data_type == 0x08:  # Close
-        print "Catch Closeing Frame"
+        self.logger.error( "Catch Closeing Frame")
         self.reader.closeSession()
 
       elif data_type == 0x09:  # Ping
-        print "Catch PingFrame"
+        loggr.error( "Catch PingFrame" )
         self.sendPongFrame()
 
       elif data_type == 0x0a:  # Pong
-        print "Catch PongFrame"
+        self.logger.error( "Catch PongFrame")
 
       else:
           pass
@@ -1091,7 +1126,7 @@ class WebSocketCommand(CommCommand):
       size += datalen
       return size
     except:
-      print "Error in WebSocket.checkMessage"
+      self.logger.error( "Error in WebSocket.checkMessage")
 
     return 0
   #
@@ -1183,13 +1218,13 @@ class WebSocketCommand(CommCommand):
     if self.func_name in dir(self.__class__):
       return getattr(self.__class__, self.func_name)(self, msg)
     else:
-      print "No such method %s" % self.func_name
+      self.logger.error( "No such method %s" % self.func_name)
 
   def applyFunction(self, seq, msg):
     if self.func_name in dir(self.__class__):
       return getattr(self.__class__, self.func_name)(self, msg, seq)
     else:
-      print "No such method %s" % self.func_name
+      self.logger.error( "No such method %s" % self.func_name)
 
   #
   # 
@@ -1201,9 +1236,9 @@ class WebSocketCommand(CommCommand):
        cmdData = json.dumps(cmd)
        self.sendDataFrame(cmdData) 
        res=self.seqMgr.getResult(seq)
-       print res
+       self.logger.debug( res )
      else:
-       print "Too much request!"
+       self.logger.error( "Too much request!")
 
      return
   #
@@ -1315,7 +1350,7 @@ def get_file_contents(fname, dirname="."):
     contents = f.read()
     f.close()
   except:
-    print "ERROR!! get_file_contents [%s, %s] " % (dirname, fname)
+    logger.error( "ERROR!! get_file_contents [%s, %s] " % (dirname, fname))
     pass
   return contents
 
@@ -1377,6 +1412,7 @@ class syncQueue:
 
 class seqManager():
   def __init__(self, n=10):
+    self.logger = logger
     self.seq_queue=[]
     self.sq=[]
     self.released=[]
@@ -1402,7 +1438,7 @@ class seqManager():
       self.seq_queue[self.last_id] = val
       self.last_id = val
     else:
-      print "Error in Release[%d]" % val
+      self.logger.error( "Error in Release[%d]" % val)
     return
 
   def registCommand(self):
@@ -1418,12 +1454,26 @@ class seqManager():
     self.release(val)
     return res
 
+def getLogger(m_name, fname=""):
+  _logger=logging.getLogger(m_name)
+  if fname:
+     log_handler = logging.handlers.RotatingFileHandler(fname, maxBytes=20000000, backupCount=5)
+     log_handler.setLevel(logging.DEBUG)
+  else:
+     log_handler = logging.StreamHandler()
+     log_handler.setLevel(logging.INFO)
 
-def daemonize():
+  log_handler.setFormatter(logging.Formatter(FORMATTER))
+  _logger.addHandler(log_handler)
+  return _logger
+
+def daemonize(fname="comm.log"):
+  __logger = getLogger(__name__, fname)
+  __logger.setLevel(logging.INFO)
   try:
     pid=os.fork()
   except:
-    print "ERROR in fork1"
+    __logger.error( "ERROR in fork1")
     sys.exit()
 
   if pid > 0:
@@ -1432,12 +1482,12 @@ def daemonize():
   try:
     os.setsid()
   except:
-    print "ERROR in setsid"
+    __logger.error( "ERROR in setsid")
 
   try:
     pid=os.fork()
   except:
-    print "ERROR in fork2"
+    __logger.error( "ERROR in fork2")
 
   if pid > 0:
     os._exit(0)
