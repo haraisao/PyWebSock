@@ -34,11 +34,12 @@ import logging.handlers
 
 logger=logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-FORMATTER='%(levelname)s:%(asctime)s: [%(name)s] %(message)s'
+FORMAT='%(levelname)s:%(asctime)s: [%(name)s] %(message)s'
+CONS_FORMAT='%(levelname)s: %(message)s'
 
 ch = logging.StreamHandler()
 ch.setLevel(logging.INFO)
-ch.setFormatter(logging.Formatter(FORMATTER))
+ch.setFormatter(logging.Formatter(CONS_FORMAT))
 
 logger.addHandler(ch)
 
@@ -1395,20 +1396,20 @@ def parseData(data):
 #
 #
 class syncQueue:
-    def __init__(self):
-        self.cv = threading.Condition()
-        self.queue = []
+  def __init__(self):
+    self.cv = threading.Condition()
+    self.queue = []
 
-    def put(self, item):
-        with self.cv:
-            self.queue.append(item)
-            self.cv.notifyAll()
+  def put(self, item):
+    with self.cv:
+      self.queue.append(item)
+      self.cv.notifyAll()
 
-    def get(self):
-        with self.cv:
-            while not len(self.queue) > 0:
-                self.cv.wait()
-            return self.queue.pop(0)
+  def get(self):
+    with self.cv:
+      while not len(self.queue) > 0:
+        self.cv.wait()
+      return self.queue.pop(0)
 
 class seqManager():
   def __init__(self, n=10):
@@ -1464,9 +1465,13 @@ def getLogger(m_name, fname="", level=logging.INFO):
      log_handler = logging.StreamHandler()
      log_handler.setLevel(logging.INFO)
 
-  log_handler.setFormatter(logging.Formatter(FORMATTER))
+  log_handler.setFormatter(logging.Formatter(FORMAT))
   _logger.addHandler(log_handler)
   return _logger
+
+def setLoggerLevel(level=logging.INFO):
+  _logger=logging.getLogger(__name__)
+  _logger.setLevel(level)
 
 def daemonize(fname="comm.log", log_level=logging.INFO):
   __logger = getLogger(__name__, fname)
@@ -1474,7 +1479,7 @@ def daemonize(fname="comm.log", log_level=logging.INFO):
   try:
     pid=os.fork()
   except:
-    __logger.error( "ERROR in fork1")
+    __logger.error( "In first os.fork()")
     sys.exit()
 
   if pid > 0:
@@ -1483,12 +1488,12 @@ def daemonize(fname="comm.log", log_level=logging.INFO):
   try:
     os.setsid()
   except:
-    __logger.error( "ERROR in setsid")
+    __logger.error( "In os.setsid()")
 
   try:
     pid=os.fork()
   except:
-    __logger.error( "ERROR in fork2")
+    __logger.error( "In second os.fork()")
 
   if pid > 0:
     os._exit(0)
