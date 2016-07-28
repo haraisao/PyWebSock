@@ -49,7 +49,7 @@ class ws_sample(comm.WebSocketCommand):
         self.sendDataFrame(json.dumps({'reply_seq':seq, 'result': 'close'}))
         exit()
     except:
-      self.logger.error( "ERROR in rpc" )
+      self.logger.error( "catch exception in ws_sample.rpc" )
     return
 
 ###################
@@ -59,7 +59,6 @@ def exit():
     global srv
     srv.close_service()
     srv.terminate()
-    sys.exit()
 
 def main(port=8080, doc_root="html", daemon=False, ssl=False, debug=False):
     global srv

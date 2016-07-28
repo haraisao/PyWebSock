@@ -560,6 +560,8 @@ class CommReader:
         self._buffer = self._buffer[res:]
         self.current = 0
         return True
+      else:
+        pass
     except:
       self.logger.error( "ERR in checkBuffer")
       self._buffer=""
@@ -776,6 +778,7 @@ class CommCommand:
 
     self.encbuf=None
     self.encpos=0
+    self.logger=logger
 
   #
   #
@@ -812,6 +815,7 @@ class CommCommand:
   #  check message format (cmd encoded_args)
   #
   def checkMessage(self, buff, offset=0, reader=None):
+    logger.debug("CommCommand.checkMessage")
     return None
 
   #
@@ -882,6 +886,7 @@ class HttpCommand(CommCommand):
   #
   #
   def checkMessage(self, buff, offset=0, reader=None):
+    logger.debug("HttpCommand.checkMessage")
     pos = self.parseHttpdHeader( buff, offset)
     if pos > 0 :
       self.reader.doProcess(self.header, self.data)
@@ -1110,15 +1115,15 @@ class WebSocketCommand(CommCommand):
         pass
 
       elif data_type == 0x08:  # Close
-        self.logger.error( "Catch Closeing Frame")
+        self.logger.debug( "Catch Closeing Frame")
         self.reader.closeSession()
 
       elif data_type == 0x09:  # Ping
-        loggr.error( "Catch PingFrame" )
+        self.loggr.debug( "Catch PingFrame" )
         self.sendPongFrame()
 
       elif data_type == 0x0a:  # Pong
-        self.logger.error( "Catch PongFrame")
+        self.logger.debug( "Catch PongFrame")
 
       else:
           pass
