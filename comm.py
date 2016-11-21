@@ -4,9 +4,11 @@
 #  Communication Adaptor for WebSocket
 #
 #   Copyright(C) 2015, Isao Hara, AIST, All Right Reserved
-#   Release under the MIT License.
+#   Licensed under the MIT License.
+#   http://www.opensource.org/licenses/MIT
 #
 
+################################
 import sys
 import os
 import socket
@@ -42,6 +44,8 @@ ch.setLevel(logging.INFO)
 ch.setFormatter(logging.Formatter(CONS_FORMAT))
 
 logger.addHandler(ch)
+
+
 
 #
 # Raw Socket Adaptor

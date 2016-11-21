@@ -11,7 +11,7 @@
     <script type="text/javascript" src="js/canvas.js"></script>
     <script type="text/javascript" src="js/rtse.js"></script>
 
-    <script type="text/javascript" src="/snap/rtc_ws.js"></script>
+    <script type="text/javascript" src="js/rtc_ws.js"></script>
 
     <script type="text/javascript">
         var rtc = new RtcWs();
@@ -51,6 +51,12 @@
           return message;
         }
 
+	/** exit **/
+        function exit_server() {
+	  show_msg("Call exit_server");
+	  rtc.exit();
+	}
+
         /** call initialize **/
 	$(function() {
 		$('nav#menu').mmenu();
@@ -78,7 +84,7 @@
       <li><a href="#">Main</a>
         <ul>
           <li><a href="projects.html" target="project">Open Project List</a></li>
-          <li><a href="#">Exit Server</a></li>
+          <li><a href="#" onClick="exit_server()">Exit Server</a></li>
         </ul>
       </li>
       <li><a href="#">Edit</a>

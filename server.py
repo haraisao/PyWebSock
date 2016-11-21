@@ -1,6 +1,20 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+'''
+  Copyright (C) 2016
+     Isao Hara
+     Robot Innovation Research Center
+     National Institute of Advanced Industrial Science and Technology (AIST), Japan
+
+     All rights reserved.
+     Licensed under the MIT License(MIT)
+     http://www.opensouce.org/license/MIT
+'''
+######################
 #
 #
-#
+
 import os
 import sys
 import json
@@ -8,6 +22,13 @@ import argparse
 
 import logging
 import comm
+
+
+#######
+# OpenRTM-aist
+import OpenRTM_aist
+import omniORB
+from RTC import *
 
 #
 #  WebSocketCommand
