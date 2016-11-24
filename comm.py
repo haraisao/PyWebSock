@@ -79,6 +79,9 @@ class SocketPort(threading.Thread):
       self.ssl_dir="ssl/"
       self.ssl_cert=self.ssl_dir + "server.crt"
       self.ssl_key=self.ssl_dir + "server.key"
+      if not os.path.isfile(self.ssl_cert) or not os.path.isfile(self.ssl_key) :
+        self.logger.error("Cert or Key file not found.")
+        self.ssl = False
 
       # for 2.7 or lator
       #
@@ -345,7 +348,10 @@ class SocketServer(SocketPort):
   #      [Overwrite super's method]
   #
   def accept_service_loop(self, lno=5, timeout=1.0):
-    self.logger.info( "Wait for accept: %s(%s:%d)" % (self.name, self.host, self.port))
+    if self.ssl:
+      self.logger.info( "Wait for accept with SSL: %s(%s:%d)" % (self.name, self.host, self.port))
+    else:
+      self.logger.info( "Wait for accept: %s(%s:%d)" % (self.name, self.host, self.port))
     self.socket.listen(lno)
     while self.mainloop:
       res = self.wait_for_read(timeout) 

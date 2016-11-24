@@ -26,9 +26,7 @@ import comm
 
 #######
 # OpenRTM-aist
-import OpenRTM_aist
-import omniORB
-from RTC import *
+import rt_component as rtc
 
 #
 #  WebSocketCommand
@@ -73,6 +71,7 @@ class ws_sample(comm.WebSocketCommand):
       self.logger.error( "catch exception in ws_sample.rpc" )
     return
 
+
 ###################
 # Global functions
 #
@@ -97,14 +96,6 @@ def main(port=8080, doc_root="html", daemon=False, ssl=False, debug=False):
     return srv
 
 if __name__ == '__main__' :
-  parser = argparse.ArgumentParser(description='Http server for WebSocket')
-  parser.add_argument('-p','--port', action='store', default=8080)
-  parser.add_argument('-d', '--daemon', action='store_true', default='False')
-  parser.add_argument('--ssl', action='store_true', default='False')
-  parser.add_argument('--root', action='store', default='html')
-  parser.add_argument('--debug', action='store_true')
-  parser.add_argument('--version', action='version', version='%(prog)s 0.1')
-  args = parser.parse_args()
-
-  srv=main(int(args.port), args.root, args.daemon, args.ssl, args.debug)
+  mgr=rtc.rtc_manager(ws_sample)
+  srv=mgr.start()
 
