@@ -56,6 +56,7 @@ class rtc_manager:
 
   def setWSCmd(self, ws):
     self.ws = ws
+    ws.rtcmgr = self
 
   def parseArgs(self):
     self.parser = argparse.ArgumentParser(description='Http server for WebSocket')
@@ -88,42 +89,7 @@ class rtc_manager:
     return self.server
 
   def exit(self):
+    comm.logger.info( "Server terminated." )
     self.server.close_service()
     self.server.terminate()
-
-
-#
-#
-#
-def exit():
-    global srv
-    srv.close_service()
-    srv.terminate()
-
-def main(port=8080, doc_root="html", daemon=False, ssl=False, debug=False):
-    global srv
-    srv = comm.create_httpd(port, doc_root, ws_sample, "", ssl)
-
-    if daemon == True :
-      comm.logger.info( "Start as daemon" )
-      comm.daemonize()
-    else:
-      pass
-
-    if debug==True:
-      comm.logger.setLevel(logging.DEBUG)
-    srv.start()
-    return srv
-
-if __name__ == '__main__' :
-  parser = argparse.ArgumentParser(description='Http server for WebSocket')
-  parser.add_argument('-p','--port', action='store', default=8080)
-  parser.add_argument('-d', '--daemon', action='store_true', default='False')
-  parser.add_argument('--ssl', action='store_true', default='False')
-  parser.add_argument('--root', action='store', default='html')
-  parser.add_argument('--debug', action='store_true')
-  parser.add_argument('--version', action='version', version='%(prog)s 0.1')
-  args = parser.parse_args()
-
-  srv=main(int(args.port), args.root, args.daemon, args.ssl, args.debug)
 

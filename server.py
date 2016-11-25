@@ -66,7 +66,7 @@ class ws_sample(comm.WebSocketCommand):
         self.sendDataFrame(json.dumps({'reply_seq':seq, 'result': flist}))
       if msg == 'exit':
         self.sendDataFrame(json.dumps({'reply_seq':seq, 'result': 'close'}))
-        exit()
+        self.rtcmgr.exit()
     except:
       self.logger.error( "catch exception in ws_sample.rpc" )
     return
@@ -76,26 +76,10 @@ class ws_sample(comm.WebSocketCommand):
 # Global functions
 #
 def exit():
-    global srv
-    srv.close_service()
-    srv.terminate()
-
-def main(port=8080, doc_root="html", daemon=False, ssl=False, debug=False):
-    global srv
-    srv = comm.create_httpd(port, doc_root, ws_sample, "", ssl)
-
-    if daemon == True :
-      comm.logger.info( "Start as daemon" )
-      comm.daemonize()
-    else:
-      pass
-
-    if debug==True:
-      comm.logger.setLevel(logging.DEBUG)
-    srv.start()
-    return srv
+  global mgr
+  mgr.exit()
 
 if __name__ == '__main__' :
-  mgr=rtc.rtc_manager(ws_sample)
-  srv=mgr.start()
+  mgr = rtc.rtc_manager(ws_sample)
+  mgr.start()
 

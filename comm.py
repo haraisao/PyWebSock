@@ -76,9 +76,9 @@ class SocketPort(threading.Thread):
     self.ssl = ssl
 
     if self.ssl == True:
-      self.ssl_dir="ssl/"
-      self.ssl_cert=self.ssl_dir + "server.crt"
-      self.ssl_key=self.ssl_dir + "server.key"
+      self.ssl_dir = "ssl/"
+      self.ssl_cert = self.ssl_dir + "server.crt"
+      self.ssl_key = self.ssl_dir + "server.key"
       if not os.path.isfile(self.ssl_cert) or not os.path.isfile(self.ssl_key) :
         self.logger.error("Cert or Key file not found.")
         self.ssl = False
