@@ -51,6 +51,7 @@ RtcWs.prototype ={
   reply_queue: [null, null, null, null, null, null, null, null, null, null],
 
   list_w:5,
+  current_component: null,
   processEvents: str_undefined,
 
   genId: function(){ /* generate UUID(random) */
@@ -82,6 +83,7 @@ RtcWs.prototype ={
         this.uri = this.base_uri + cmd
         this.webSocket = new WebSocket(this.uri);
 
+	console.log(this.uri);
         this.webSocket.onopen = this.onOpen;
         this.webSocket.onmessage = this.onMessage;
         this.webSocket.onclose = this.onClose;
@@ -293,6 +295,44 @@ RtcWs.prototype ={
   exit: function() {
     this.call("exit", null);
   },
+
+  /**** RTC ***/
+  createRtc: function() {
+    //this.call(["createRtc",{'type':'in','name':'in', 'data_type':'TimedString'}], null);
+    this.call(["createRtc"], null);
+  },
+
+  /*  get list of Snap! projects */
+  getRtcList: function(func, ms) {
+    this.callSyncFunc("getRtcList", func, ms, this);
+  },
+
+  setCurrentRtc: function(name) {
+    this.current_component = name;
+    this.call(["setCurrentRtc", name], null);
+  },
+
+  addDataPort: function(typ, name, dtype) {
+    this.call(["addDataPort", typ, name, dtype], null);
+  },
+
+  deleteDataPort: function( name ) {
+    this.call(["deleteDataPort", name], null);
+  },
+
+  restoreProfile: function(prof) {
+    this.call(["restoreProfile", prof], null);
+  },
+
+  activateRtc: function( ) {
+    this.call("activateRtc", null);
+  },
+
+  deactivateRtc: function( ) {
+    this.call("deactivateRtc", null);
+  },
+
+
 
   /*******************/
 };  /** End of the prototype of RtcWs **/

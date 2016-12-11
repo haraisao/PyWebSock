@@ -28,11 +28,14 @@
         }
 
         function exit() {
-          rtc.call('exit', null);
+          rtc.exit();
           $("[data-name='project-list']").html("");
           $("#menu").html("Server closed...");
         }
 
+        function createRtc() {
+          rtc.createRtc();
+        }
         /** call initialize **/
         $(init);
           
@@ -42,6 +45,9 @@
   <h2>List of Projects</h2>
    <div id="menu">
     <button onClick="getProjectList();">Update List</button>
+<!--
+    <button onClick="createRtc();">CreateRtc</button>
+-->
     <button onClick="exit();">Exit Server</button>
     <hr />
    </div>

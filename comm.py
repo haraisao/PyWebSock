@@ -726,6 +726,10 @@ class HttpReader(CommReader):
 
       self.command = self.WSCommand.duplicate(self, func)
       self.sendResponse(response, False)
+      try:
+        self.command.init(func)
+      except:
+        pass
 
     except:
       self.sendResponse(self.command.response404())
@@ -1006,6 +1010,7 @@ class WebSocketCommand(CommCommand):
     self.requestReturn=False
     self.seqMgr = seqManager()
     self.syncQ  = syncQueue()
+    print "Generate WebSocketCommand"
   #
   #
   #
@@ -1291,6 +1296,9 @@ class WebSocketCommand(CommCommand):
     else:
       self.sendDataFrame(msg)
     return
+
+  def hello(self, msg):
+    print msg
 
 ######################################33
 #     CometManager
