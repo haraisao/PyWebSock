@@ -25,6 +25,7 @@ import time
 import logging
 import comm
 
+from types import *
 
 #######
 # OpenRTM-aist
@@ -82,7 +83,7 @@ class RtcWeb(OpenRTM_aist.DataFlowComponentBase, RtcWeb_Core):
     RtcWeb_Core.__init__(self)
     self.manager = manager
     self.activated = False
-    self.wevsocketAdaptor = None
+    self.websocketAdaptor = None
 
     self._docroot_dir = ["html/"]
     self._project_dir = ["project/"]
@@ -116,8 +117,8 @@ class RtcWeb(OpenRTM_aist.DataFlowComponentBase, RtcWeb_Core):
   def onExecute(self, ec_id):
     OpenRTM_aist.DataFlowComponentBase.onExecute(self, ec_id)
     if self.websocketAdaptor :
-      self.websocketAdaptor.snap_broadcast('Go')
-       
+      self.websocketAdaptor.on_exec(ec_id)
+
     return RTC_OK
 
   def activate(self):
@@ -346,4 +347,110 @@ class rtc_manager:
   def listRtc(self):
     for comp in self.comps:
       print comp.getNamingName()
+
+#
+#  WebSocketCommand
+#
+class ws_rtc_snap(comm.WebSocketCommand):
+  def __init__(self, rdr):
+    comm.WebSocketCommand.__init__(self, rdr, "")
+
+  def init(self, f):
+    if f == 'rpc':
+      self.rtcmgr.setSnap(self)
+
+  def on_exec(self, ec_id):
+    pass
+
+  def newRtc(self, msg):
+    comp=self.rtcmgr.createRtc('RtcWeb', msg)
+    if comp :
+      comp.setWebSocketAdaptor(self)
+
+  def getRtcList(self):
+    rtclist = []
+
+    for comp in self.rtcmgr.comps :
+      data={}
+      data['name']=comp.getNamingNames()[0]
+      inp_data=[]
+      
+      for inp in comp._inports:
+        pdata={}
+        pdata['name'] = inp._name
+        pdata['data_type'] = comp._datatype[inp._name]
+        inp_data.append( pdata )
+
+      data['in_port'] = inp_data
+
+      outp_data=[]
+      for outp in comp._outports:
+        pdata={}
+        pdata['name'] = outp._name
+        pdata['data_type'] = comp._datatype[outp._name]
+        outp_data.append( pdata )
+
+      data['out_port'] = outp_data
+      rtclist.append( data )
+    return rtclist
+
+  def getSnapProject(self,):
+    flist = os.listdir(self.reader.dirname +'/snap/projects')
+    flist.sort()
+    return flist
+
+  def exit_server(self, seq):
+    self.sendDataFrame(json.dumps({'reply_seq':seq, 'result': 'close'}))
+    self.rtcmgr.exit()
+
+  def rtmgr(self, msg, seq):
+    self.rpc(msg, seq)
+    return
+
+  def rpc(self, msg, seq):
+    if type(msg) is StringType or type(msg) is UnicodeType:
+      cmd = msg
+
+    elif type(msg) is ListType:
+      cmd = msg.pop(0)
+
+    else:
+      self.logger.error( "Invalid message" )
+      return
+
+    self.logger.info( "Call rpc:"+cmd )
+    
+    try:
+      if cmd == 'createRtc':
+        self.newRtc(msg)
+
+      elif cmd == 'getRtcList':
+        rtclist = self.getRtcList()
+        self.sendDataFrame(json.dumps({'reply_seq':seq, 'result': rtclist}))
+
+      elif cmd == 'setCurrentRtc':
+        self.rtcmgr.setCurrentRtc(msg)
+ 
+      elif cmd == 'addDataPort':
+        self.rtcmgr.addDataPort(msg)
+
+      elif cmd == 'deleteDataPort':
+        self.rtcmgr.deleteDataPort(msg)
+
+      elif cmd == 'activateRtc':
+        self.rtcmgr.activateRtc()
+
+      elif cmd == 'deactivateRtc':
+        self.rtcmgr.deactivateRtc()
+
+      elif cmd == 'projects':
+        flist = self.getSnapProject()
+        self.sendDataFrame(json.dumps({'reply_seq':seq, 'result': flist}))
+
+      elif cmd == 'exit':
+        self.exit_server(seq)
+
+    except:
+      self.logger.error( "catch exception in ws_rtc_snap.rpc " +cmd)
+    return
 
