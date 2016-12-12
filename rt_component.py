@@ -367,31 +367,51 @@ class ws_rtc_snap(comm.WebSocketCommand):
     if comp :
       comp.setWebSocketAdaptor(self)
 
+  def getInPorts(self, comp=None):
+    inp_data=[]
+
+    if comp is None:
+     comp = self.rtcmgr.comp
+
+    if comp is None:
+      self.logger.error( "No component selected" )
+      return inp_data
+
+    for inp in comp._inports:
+      pdata={}
+      pdata['name'] = inp._name
+      pdata['data_type'] = comp._datatype[inp._name]
+      inp_data.append( pdata )
+
+    return inp_data
+
+  def getOutPorts(self, comp=None):
+    outp_data=[]
+    if comp is None:
+     comp = self.rtcmgr.comp
+
+    if comp is None:
+      self.logger.error( "No component selected" )
+      return out_data
+
+    for outp in comp._outports:
+      pdata={}
+      pdata['name'] = outp._name
+      pdata['data_type'] = comp._datatype[outp._name]
+      outp_data.append( pdata )
+
+    return outp_data
+
   def getRtcList(self):
     rtclist = []
-
     for comp in self.rtcmgr.comps :
       data={}
       data['name']=comp.getNamingNames()[0]
-      inp_data=[]
-      
-      for inp in comp._inports:
-        pdata={}
-        pdata['name'] = inp._name
-        pdata['data_type'] = comp._datatype[inp._name]
-        inp_data.append( pdata )
+      data['in_port'] = self.getInPorts(comp)
+      data['out_port'] = self.getOutPorts(comp)
 
-      data['in_port'] = inp_data
-
-      outp_data=[]
-      for outp in comp._outports:
-        pdata={}
-        pdata['name'] = outp._name
-        pdata['data_type'] = comp._datatype[outp._name]
-        outp_data.append( pdata )
-
-      data['out_port'] = outp_data
       rtclist.append( data )
+
     return rtclist
 
   def getSnapProject(self,):

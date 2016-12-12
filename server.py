@@ -61,7 +61,7 @@ class ws_sample(ws_rtc_snap):
     return
 
   def on_exec(self, ec_id):
-    self.snap_broadcast('Go')
+    self.snap_broadcast('onExecute')
 
 ###################
 # Global functions
