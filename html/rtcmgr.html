@@ -4,155 +4,36 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>RTC-Snap! interface</title>
+    <link type="text/css" rel="stylesheet" href="css/mmenu.css">
+    <link type="text/css" rel="stylesheet" href="css/jquery.mmenu.all.css">
+
     <script type="text/javascript" src="js/jquery-3.0.0.min.js"></script>
+    <script type="text/javascript" src="js/jquery.mmenu.all.min.js"></script>
+    <script type="text/javascript" src="js/canvas.js"></script>
+
     <script type="text/javascript" src="js/rtc_ws.js"></script>
 
+    <script type="text/javascript" src="js/rtcmgr.js"></script>
     <script type="text/javascript">
-        var rtc = new RtcWs();
+        //var rtc = new RtcWs();
+        var rtc = null;
         var max_lines = 25;
-        var selectedRtc = "";
-        var selectedRtcItm = null;
-
-        function init() {
-          selectDataTypeHide();
-          rtc.open('rtmgr');
-          rtc.waitOpened(rtc);
-          getRtcList();
-        }
 
         /**** Commands ***/
-        function getRtcList() {
-          rtc.getRtcList(updateRtcList, 250);
+        function showPortManager(){
+          setDisplayVal('PortManager', 'block');
+        }
+        function hidePortManager(){
+          setDisplayVal('PortManager', 'none');
         }
 
-        function updateRtcList(lst) {
-          lstview = mkRtcList(lst);
-          $("[data-name='rtc-list']").html(lstview);
-
-          if( selectedRtcItm ){
-            selectedRtcItm = document.getElementById(selectedRtc);
-            selectedRtcItm.style.backgroundColor='black';
-            selectedRtcItm.style.color='white';
-          }
-        }
-
-        function mkRtcList(lst){
-          if(!lst) { return ""; }
-          var h = lst.length;
-          var n;
-
-          var lstview = '<table>';
-          for(var i=0; i< h ; i++){
-            n=i+1
-            lstview += '<tr>';
-            lstview += '<td>['+n+']:'+ mk_rtc_item(lst[i]) +'</td>';
-            lstview += '</tr>';
-          }
-          lstview += '</table>';
-          return lstview;
-        }
-
-        function mk_rtc_item(prof){
-          var itm;
-          itm="";
-          itm += '<span id="'+prof.name+'" onClick="selectRtc(\''+prof.name+'\', this);">';
-          itm += prof.name
-          itm += '</span>';
-          console.log(prof);
-          for(p in  prof.in_port){
-            itm += "<br>&nbsp;&nbsp;-> "+prof.in_port[p].name +"("+prof.in_port[p].data_type+")";
-          }
-
-          for(p in  prof.out_port){
-            itm += "<br>&nbsp;&nbsp;&nbsp;&nbsp; "+prof.out_port[p].name +"("+prof.out_port[p].data_type+") ->";
-          }
-
-          return itm;
-        }
-
-        function selectRtc(name, itm){
-          if (selectedRtcItm){
-            selectedRtcItm.style.backgroundColor='white';
-            selectedRtcItm.style.color='black';
-          }
-          
-          selectedRtc = name;
-          rtc.setCurrentRtc(name);
-          document.getElementById('SelectedRtcName').value=name;
-          selectedRtcItm = itm;
-          selectedRtcItm.style.backgroundColor='black';
-          selectedRtcItm.style.color='white';
-        }
-
-
-        function addDataPort(tid, nid, dtid){
-          var typ,name, dtype;
-
-          typ = document.getElementById(tid).value;
-          name = document.getElementById(nid).value;
-          dtype = document.getElementById(dtid).value;
-          if (selectedRtcItm == null || typ == "" || name == "" ){
-            alert("Error in addDataPort");
-            return;
-          }
-          rtc.addDataPort(typ, name, dtype);
-          getRtcList();
-        }
-
-        function deleteDataPort( nid ){
-          var name;
-          name = document.getElementById(nid).value;
-          if (selectedRtcItm == null || name == "" ){
-            alert("Error in deleteDataPort");
-            return;
-          }
-          rtc.deleteDataPort(name);
-          getRtcList();
-                
-        }
-
-        function selectDataType(){
-          document.getElementById('DataType').value = document.getElementById('DataTypeSel').value;
-          document.getElementById('DataTypeSel').style.display='none';
-        }
-
-        function selectDataTypeShow(){
-          document.getElementById('DataTypeSel').style.display='block';
-        }
-
-        function selectDataTypeHide(){
-          document.getElementById('DataTypeSel').style.display='none';
-        }
-
-        /*
-
-         */
-        function activateRtc(){
-          if (selectedRtcItm == null){
-            alert("Error in activateRtc");
-            return;
-          }
-          rtc.activateRtc();
-        }
-
-        function deactivateRtc(){
-          if (selectedRtcItm == null){
-            alert("Error in activateRtc");
-            return;
-          }
-          rtc.deactivateRtc();
-        }
-
-
-        function open_snap(){
-          if( selectedRtcItm ){
-            window.open("snap/snap.html#open:projects/rtc/project.xml");
+        function togglePortManager(){
+          if (document.getElementById('PortManager').style.display == 'none'){
+            document.getElementById('PortManager').style.display = 'block';
           }else{
-            alert("No rt-component selected.");
+            document.getElementById('PortManager').style.display = 'none';
           }
-
         }
-
 
         function exit() {
           rtc.exit();
@@ -160,27 +41,53 @@
           $("#menu").html("Server closed...");
         }
 
-        function createRtc() {
-          rtc.createRtc();
-          getRtcList();
-        }
         /** call initialize **/
-        $(init);
+        $(function() {
+           $('nav#menu').mmenu();
+        })
+
+        $(init_rtcmgr);
           
     </script>
 </head>
 <body>
-  <h2>List of Rtcs</h2>
-   <div id="menu">
-    <button onClick="getRtcList();">Update List</button>
-    <button onClick="createRtc();">CreateRtc</button> | 
-    <button onClick="exit();">Exit Server</button>
-   </div>
-  <br>
-   <div data-name="rtc-edit">
+ <div id="page">
+  <div class="header">
+   <a href="#menu"></a>
+   RtcManager
+  </div>
+
+   <nav id="menu">
+    <ul>
+      <li><a href="#">Main</a>
+       <ul>
+        <li><a href="#" onClick="exit();">Exit Server</a></li>
+       </ul>
+       </li>
+      <li><a href="#">Rtc</a>
+       <ul>
+        <li><a href="#" onClick="createRtc();">CreateRtc</a> </li>
+        <li><a href="#" onClick="getRtcList();">Update List</a></li>
+        <li><a href="#" onClick="open_snap();">Open Snap!</a></li>
+        <li><a href="#" onClick="activateRtc();">Activate selectedRtc</a></li>
+        <li><a href="#" onClick="deactivateRtc();">Deactivate selectedRtc</a></li>
+       </ul>
+       </li>
+      <li><a href="#">DataPortManager</a>
+       <ul>
+        <li><a href="#" onClick="showPortManager();">Show DataPort Manager</a> </li>
+        <li><a href="#" onClick="hidePortManager();">Hide DataPort Manager</a> </li>
+       </ul>
+       </li>
+    </ul>
+   </nav>
+
+  <div class="content">
   Selected Rtc: <input type="text" size="30" id="SelectedRtcName" value="" disabled="disabled">
-  <h4>Port manager</h4>
- 
+
+  <h4 onClick="togglePortManager();">Port manager</h4>
+
+ <div id="PortManager" style="display:none">
   <table>
   <tr>
    <td>
@@ -210,16 +117,15 @@
  </table>
     <button onClick="addDataPort('PortType', 'PortName', 'DataType');">AddDataPort</button>
     <button onClick="deleteDataPort('PortName');">deleteDataPort</button>
-  <p>
-    <button onClick="activateRtc();">activateRtc</button>
-    <button onClick="deactivateRtc();">deactivateRtc</button>
+  </div>
 
-  <h4>Core logic edit by Snap!</h4>
-    <button onClick="open_snap();">Open Snap!</button>
-  
     <hr />
    <h3>Components</h3>
    <div data-name="rtc-list"></div>
+  </div>
 
+ <div class="footer">Copyright(C) 2016 Isao Hara, All Rights Reversed</div>
+
+ </div>
 </body>
 </html>

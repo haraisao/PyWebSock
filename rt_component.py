@@ -117,7 +117,14 @@ class RtcWeb(OpenRTM_aist.DataFlowComponentBase, RtcWeb_Core):
   def onExecute(self, ec_id):
     OpenRTM_aist.DataFlowComponentBase.onExecute(self, ec_id)
     if self.websocketAdaptor :
+      for port in self._inports : 
+        self.websocketAdaptor.on_data_inport(port)
+
       self.websocketAdaptor.on_exec(ec_id)
+
+      for port in self._outports : 
+        self.websocketAdaptor.on_data_outport(port)
+
 
     return RTC_OK
 
@@ -360,6 +367,12 @@ class ws_rtc_snap(comm.WebSocketCommand):
       self.rtcmgr.setSnap(self)
 
   def on_exec(self, ec_id):
+    pass
+
+  def on_data_inport(self, p):
+    pass
+
+  def on_data_outport(self, p):
     pass
 
   def newRtc(self, msg):
