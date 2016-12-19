@@ -1010,7 +1010,7 @@ class WebSocketCommand(CommCommand):
     self.requestReturn=False
     self.seqMgr = seqManager()
     self.syncQ  = syncQueue()
-    print "Generate WebSocketCommand"
+
   #
   #
   #
@@ -1113,7 +1113,9 @@ class WebSocketCommand(CommCommand):
               if self.requestReturn : self.syncQ.put(self.data['result'])
 
             else:
-              self.logger.error( "Error: invalid message")
+              self.callOtherFunc(self.data)
+              #self.logger.error( "Error: invalid message")
+
           else:
             self.callFunction(self.data)
 
@@ -1150,6 +1152,10 @@ class WebSocketCommand(CommCommand):
       self.logger.error( "Error in WebSocket.checkMessage")
 
     return 0
+
+  def callOtherFunc(self,data):
+    self.logger.error( "Error: invalid message")
+    
   #
   #
   #
@@ -1270,10 +1276,10 @@ class WebSocketCommand(CommCommand):
   #
   #
   #
-  def waitResult(self):
+  def waitResult(self, tout=None):
      res = None
      if self.requestReturn :
-       res=self.syncQ.get()
+       res=self.syncQ.get(tout)
        self.requestReturn=False
      return res
 
@@ -1282,10 +1288,15 @@ class WebSocketCommand(CommCommand):
      self.sendDataFrame(cmd) 
      return self.waitResult()
 
-  def snap_broadcast(self, msg, requestRet=True):
+  def snap_broadcast(self, msg, requestRet=True, tout=None):
      self.requestReturn=requestRet
      self.sendDataFrame('this.broadcast("'+msg+'")') 
-     return self.waitResult()
+     return self.waitResult(tout)
+
+  def push_value_to_snap(self, data, *args, **keyargs):
+     self.requestReturn=False
+     self.sendDataFrame('this.push_value("'+data+'")') 
+     return 
 
   #
   # Sample Function...
@@ -1428,10 +1439,12 @@ class syncQueue:
       self.queue.append(item)
       self.cv.notifyAll()
 
-  def get(self):
+  def get(self, timeout=None):
     with self.cv:
       while not len(self.queue) > 0:
-        self.cv.wait()
+        self.cv.wait(timeout)
+        return None
+
       return self.queue.pop(0)
 
 class seqManager():

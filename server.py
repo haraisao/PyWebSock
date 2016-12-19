@@ -25,6 +25,7 @@ import comm
 
 
 from types import *
+
 #######
 # OpenRTM-aist
 #import rt_component as rtc
@@ -36,6 +37,7 @@ from rt_component import *
 class ws_sample(ws_rtc_snap):
   def __init__(self, rdr):
     ws_rtc_snap.__init__(self, rdr)
+    self.message = 'onExecute'
 
   def chat(self, msg, seq=-1):
     if msg == "bye":
@@ -60,8 +62,44 @@ class ws_sample(ws_rtc_snap):
     self.sendDataFrame(res)
     return
 
+  def callOtherFunc(self, json_data):
+    try:
+      comp = self.rtcmgr.comp
+      out_name = str(json_data['out_name'])
+      message = str(json_data['message'])
+
+      if comp._datatype[out_name] == 'RTC.TimedString' :
+        data = instantiateDataType(TimedString)
+        data.data = message
+        comp._port[out_name].write(data)
+      else:
+        print "No match"
+    except:
+      print "ERROR"
+      pass
+
+    return
+
   def on_exec(self, ec_id):
-    self.snap_broadcast('onExecute')
+    res=self.snap_broadcast(self.message, True, 0.5)
+    if res is None:
+      pass
+    else:
+      print res
+    return
+
+
+  def on_data_inport(self, port, data):
+    name = self.rtcmgr.comp.findDataPort(port)
+    if type(data.data) is str:
+      res=self.snap_broadcast(data.data, True, 0.5)
+    return
+
+  def on_data_outport(self, port, data):
+    #name = self.rtcmgr.comp.findDataPort(port)
+    #print "Ouput to ", name, " ...", port.getPortDataType()
+    return
+
 
 ###################
 # Global functions

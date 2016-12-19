@@ -118,13 +118,11 @@ class RtcWeb(OpenRTM_aist.DataFlowComponentBase, RtcWeb_Core):
     OpenRTM_aist.DataFlowComponentBase.onExecute(self, ec_id)
     if self.websocketAdaptor :
       for port in self._inports : 
-        self.websocketAdaptor.on_data_inport(port)
+        if port.isNew() :
+          data = port.read() 
+          self.websocketAdaptor.on_data_inport(port, data)
 
       self.websocketAdaptor.on_exec(ec_id)
-
-      for port in self._outports : 
-        self.websocketAdaptor.on_data_outport(port)
-
 
     return RTC_OK
 
@@ -160,6 +158,12 @@ class RtcWeb(OpenRTM_aist.DataFlowComponentBase, RtcWeb_Core):
                               OpenRTM_aist.RingBuffer(8))
     self.registerOutPort(name, self._port[name])
 
+  def findDataPort(self, port):
+    for name in self._data.keys():
+      if self._port[name] == port : return name
+    return None
+
+
   def delPort(self, name):
     port = self._port[name]
     if  port in self._inports : 
@@ -175,6 +179,9 @@ class RtcWeb(OpenRTM_aist.DataFlowComponentBase, RtcWeb_Core):
 
   def setWebSocketAdaptor(self, ws):
     self.websocketAdaptor = ws
+
+  def callOtherFunc(self, data):
+    print data
 
 ###################
 # RTC Manager
@@ -369,10 +376,10 @@ class ws_rtc_snap(comm.WebSocketCommand):
   def on_exec(self, ec_id):
     pass
 
-  def on_data_inport(self, p):
+  def on_data_inport(self, p, data):
     pass
 
-  def on_data_outport(self, p):
+  def on_data_outport(self, p, data):
     pass
 
   def newRtc(self, msg):
