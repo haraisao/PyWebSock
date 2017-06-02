@@ -20,6 +20,8 @@ import struct
 import copy
 import json
 
+import itertools
+
 # for ssl
 import ssl
 
@@ -35,7 +37,7 @@ import logging
 import logging.handlers
 
 logger=logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 FORMAT='%(levelname)s:%(asctime)s: [%(name)s] %(message)s'
 CONS_FORMAT='%(levelname)s: %(message)s'
 
@@ -296,6 +298,18 @@ class SocketPort(threading.Thread):
       self.logger.error( "Socket error in send")
       self.close()
 
+  # 
+  #  find
+  #
+  def readers(self):
+    res = []
+    for p in self.com_ports:
+       res.append(p.reader)
+
+    return flatten(res)
+
+
+
 ############################################
 #  Server Adaptor
 #     SocketPort <--- SocketServer
@@ -327,7 +341,7 @@ class SocketServer(SocketPort):
         # for 2.7 or lator
         #sslconn = self.context.wrap_socket(conn, server_side=True)
         sslconn = ssl.wrap_socket(conn, server_side=True,
-			 certfile=self.ssl_cert, keyfile=self.ssl_key)
+                     certfile=self.ssl_cert, keyfile=self.ssl_key)
 
         newadaptor = SocketService(self, reader, name, sslconn, addr)
       else:
@@ -365,6 +379,7 @@ class SocketServer(SocketPort):
     self.logger.info( "Terminate all service %s(%s:%d)" % (self.name, self.host, self.port))
     self.close_service()
     self.close()
+    self.logger.info( "..Terminated")
     return 
 
   #
@@ -432,6 +447,7 @@ class SocketService(SocketPort):
     self.module_name=__name__+'.SocketService'
     self.socket = sock
     self.server_adaptor = server
+    self.name=''
     server.com_ports.append(self)
 
   #
@@ -445,6 +461,13 @@ class SocketService(SocketPort):
   #
   def getServer(self):
     return self.server_adaptor
+
+  #
+  #
+  #
+  def terminate(self):
+    self.mainloop=False
+    return
 
 #
 #  Commands (Comet)
@@ -589,6 +612,7 @@ class CommReader:
       self.logger.info( "No owner" )
 
     if flag:
+      print "---close"
       self.owner.close()
     return
   #
@@ -633,8 +657,10 @@ class CommReader:
   #
   #
   #
-  def closeSession(self):
+  def closeSession(self, flag=False):
     self.owner.close()
+    if flag:
+      self.owner.getServer().terminate()
     return
 
 
@@ -649,6 +675,8 @@ class HttpReader(CommReader):
     CommReader.__init__(self, None, HttpCommand(dirname))
     self.rtc = rtc
     self.dirname = dirname
+
+    self.SIGVerseCommand = SigverseCommand(None, None)
 
     self.WSCommand = WebSocketCommand(None, None)
     self.WS_KEY = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -670,12 +698,18 @@ class HttpReader(CommReader):
     fname = header["Http-FileName"]
 
     if cmd == "GET":
-      if 'Connection' in header and header['Connection'] == "Upgrade" and 'Upgrade' in header and header['Upgrade'] == "websocket":
-        self.webSocketRequest(header, fname)
+      if 'Connection' in header and header['Connection'] == "Upgrade" and 'Upgrade' in header:
+        if header['Upgrade'] == "websocket":
+          self.webSocketRequest(header, fname)
+
+        elif header['Upgrade'] == "sigverse":
+          self.sigverseRequest(header, fname)
+
+        else:
+          response = self.command.response404()
 
       else:
         contents = get_file_contents(fname, self.dirname)
-        
         ctype = get_content_type(fname)
 
         if contents is None:
@@ -733,6 +767,29 @@ class HttpReader(CommReader):
 
     except:
       self.sendResponse(self.command.response404())
+  #
+  #
+  #
+  def sigverseRequest(self, header, fname):
+    try:
+      func = fname.split('/')[-1]
+
+      responseHeaders = {}
+      responseHeaders['Content-Type'] = 'text/plain'
+      responseHeaders['Upgrade'] = 'sigverse'
+      responseHeaders['Connection'] = 'Upgrade'
+      response = self.command.response101(responseHeaders, "")
+
+      self.command = self.SIGVerseCommand.duplicate(self, func)
+      self.sendResponse(response, False)
+      try:
+        self.command.init(func)
+      except:
+        pass
+
+    except:
+      self.sendResponse(self.command.response404())
+
 
   ###############
   # for COMET
@@ -1010,6 +1067,8 @@ class WebSocketCommand(CommCommand):
     self.requestReturn=False
     self.seqMgr = seqManager()
     self.syncQ  = syncQueue()
+    self.terminateFlag  = False
+    self.manager  = None
 
   #
   #
@@ -1075,6 +1134,7 @@ class WebSocketCommand(CommCommand):
     except:
       res = msg
     return res
+
   #
   #  data_type 
   #     0x00:  Continue
@@ -1088,15 +1148,19 @@ class WebSocketCommand(CommCommand):
   def checkMessage(self, buff, offset=0, reader=None):
     try:
       size, fragment, data_type, mask_data, datalen = self.parseHeader(buff)
+
       if datalen > len(buff) : return 0
 
       if data_type == 0x01:  # Text
         if self.current_data_frame == data_type: self.data=""
         self.data += self.parseDataFrame(size, mask_data, datalen, buff)
+
+
         #
         # call function...
         if not fragment :
           self.data = self.json_decode(self.data)
+          print self.data
 
           if type(self.data) == dict :
             if  'Status' in self.data and self.data['Status'] == "Opening" :
@@ -1111,6 +1175,16 @@ class WebSocketCommand(CommCommand):
 
             elif 'result' in self.data :
               if self.requestReturn : self.syncQ.put(self.data['result'])
+
+            elif 'op' in self.data and 'topic' in self.data:
+              self.terminateFlag  = True
+              if not self.manager :
+                self.manager = ROS_BridgeManager(self)
+
+              if 'msg' in self.data :
+                self.manager.call( self.data )
+              else:
+                self.manager.add( self.data )
 
             else:
               self.callOtherFunc(self.data)
@@ -1133,17 +1207,17 @@ class WebSocketCommand(CommCommand):
 
       elif data_type == 0x08:  # Close
         self.logger.debug( "Catch Closeing Frame")
-        self.reader.closeSession()
+        self.reader.closeSession(self.terminateFlag)
 
       elif data_type == 0x09:  # Ping
-        self.loggr.debug( "Catch PingFrame" )
+        self.logger.debug( "Catch PingFrame" )
         self.sendPongFrame()
 
-      elif data_type == 0x0a:  # Pong
+      elif data_type == 0x0a:  # Pon
         self.logger.debug( "Catch PongFrame")
 
       else:
-          pass
+        pass
 
       if not fragment : self.data = ""
       size += datalen
@@ -1183,7 +1257,7 @@ class WebSocketCommand(CommCommand):
   #
   #
   def sendCloseFrame(self):
-    buf = "\x81\x08\x00"
+    buf = "\x88\x00"
     self.reader.sendResponse(buf)
     return
 
@@ -1191,23 +1265,23 @@ class WebSocketCommand(CommCommand):
   #
   #
   def sendPingFrame(self):
-    buf = "\x81\x09\x00"
-    self.reader.sendResponse(buf)
+    buf = "\x89\x00"
+    self.reader.sendResponse(buf,False)
     return
 
   #
   #
   #
   def sendPongFrame(self):
-    buf = "\x81\x0a\x00"
-    self.reader.sendResponse(buf)
+    buf = "\x8a\x00"
+    self.reader.sendResponse(buf, False)
     return
 
   #
   #
   #
-  def genDataFrame(self, msg):
-    buf="\x81"
+  def genDataFrame(self, msg, opcode="\x81"):
+    buf=opcode
     slen = len(msg)
     if slen > 65535: 
       buf = buf+chr(127)+struct.pack('>Q',slen)+msg
@@ -1219,11 +1293,12 @@ class WebSocketCommand(CommCommand):
   #
   #
   #
-  def genMaskedDataFrame(self, msg):
+  def genMaskedDataFrame(self, msg, opcode="\x81"):
     mask = ""
     for i in range(4):
       mask += chr(int(random.random()*256))
-    buf="\x81"
+
+    buf=opcode
     slen = len(msg)
     if slen > 65535: 
       buf = buf+chr(127 | 0x80)+struct.pack('>Q',slen)
@@ -1310,6 +1385,137 @@ class WebSocketCommand(CommCommand):
 
   def hello(self, msg):
     print msg
+
+#############################################
+#
+#
+class SigverseCommand(CommCommand):
+  #
+  # Constructor
+  #
+  def __init__(self, reader, func, buff=''):
+    CommCommand.__init__(self, buff, reader)
+    self.module_name = __name__+'.SigverseCommand'
+    self.func_name = func
+    self.data=""
+    self.requestReturn=False
+    self.seqMgr = seqManager()
+    self.syncQ  = syncQueue()
+    self.terminateFlag  = False
+
+
+######################################33
+#     ROS_Bridge_Manager
+#
+class ROS_BridgeManager:
+  #
+  # Constructor
+  #
+  def __init__(self, cmd):
+    self.name="ROSBridge"
+    self.commander = cmd
+    self.subscribers = []
+    self.publishers = []
+    self.services = []
+
+  def add(self, data):
+    if data['op'] == 'subscribe':
+      self.subscribers.append( RosSubscriber(data['topic'], data['type'], self.commander) )
+
+    elif data['op'] == 'publish':
+      self.publisher.append( RosPublisher(data['topic'], data['type'], self.commander) )
+
+    elif data['op'] == 'service':
+      self.services.append( RosService(data['topic'], data['type'], self.commander) )
+
+    else:
+      print "Invalid request"
+  #
+  #
+  def getPublisher(self, topic ):
+    return findall(lambda x : x.topic == topic, sellf.publisers)
+
+  def getSubscriber(self, topic ):
+    return findall(lambda x : x.topic == topic, sellf.subscribers)
+
+  def getService(self, topic ):
+    return findall(lambda x : x.topic == topic, sellf.services)
+
+  #
+  #
+  def call(self, data ):
+    pubs = getPublisher(data['topic'])
+    subs = getSubscriber(data['topic'])
+    srvs = getService(data['topic'])
+    for x in flatten([pubs, subs, srvs]):
+      x.call(data)
+
+  #
+  #
+  #
+  def sendMsg(self, topic, msg ):
+    sub = getSubscriber(topic)
+    pub = getPublisher(topic)
+    srv = getService(topic)
+    for x in flatten([pubs, subs, srvs]):
+      x.sendMsg(msg)
+
+  #
+  #
+  def sendop(self):
+    if self.op == "publish": return "subscribe"
+    if self.op == "subscribe": return "publish"
+
+    return self.op
+
+#
+#  for ROS Bridge
+class RosSubscriber:
+  def __init__(self, topic, type, comm):
+    self.comm = comm
+    self.topic = topic
+    self.type = type
+
+  def sendMsg(self, msg ):
+    cmd={ "op": "publish", "topic": self.topic, "msg": msg,"type": self.type }
+    rosmsg = json.dumps(cmd)
+    self.commander.sendDataFrame( rosmsg )
+
+  def call(self, data ):
+    print "Sub:ROSMsg"
+    print data
+
+class RosPublisher:
+  def __init__(self, topic, type, comm):
+    self.comm = comm
+    self.topic = topic
+    self.type = type
+
+  def sendMsg(self, msg ):
+    cmd={ "op": "subscribe", "topic": self.topic, "msg": msg,"type": self.type }
+    rosmsg = json.dumps(cmd)
+    self.commander.sendDataFrame( rosmsg )
+
+  def call(self, data ):
+    print "Pub:ROSMsg"
+    print data
+
+
+class RosService:
+  def __init__(self, topic, type, comm):
+    self.comm = comm
+    self.topic = topic
+    self.type = type
+
+  def sendMsg(self, msg ):
+    cmd={ "op": "service", "topic": self.topic, "msg": msg,"type": self.type }
+    rosmsg = json.dumps(cmd)
+    self.commander.sendDataFrame( rosmsg )
+
+  def call(self, data ):
+    print "Service:ROSMsg"
+    print data
+
 
 ######################################33
 #     CometManager
@@ -1538,6 +1744,16 @@ def daemonize(fname="comm.log", log_level=logging.INFO):
   os.close(sys.stdin.fileno())
   os.close(sys.stdout.fileno())
   os.close(sys.stderr.fileno())
+
+def flatten(lst):
+  return list(itertools.chain.from_iterable(lst))
+
+def findall(func, lst):
+  res = []
+  for x in lst:
+    if func(x) : res.append(x)
+  return res
+
 
 ######################################
 #  HTTP Server
