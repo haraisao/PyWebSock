@@ -120,6 +120,10 @@ class SocketPort(threading.Thread):
     self.logger=getLogger(self.module_name, fname)
     return
 
+  def shutdown(self, cmd):
+    if self.socket :
+        self.socket.shutdown(cmd)
+    return
   #
   # Bind socket 
   #
@@ -612,7 +616,7 @@ class CommReader:
       self.logger.info( "No owner" )
 
     if flag:
-      print "---close"
+      #print "---close"
       self.owner.close()
     return
   #
@@ -1761,6 +1765,6 @@ def findall(func, lst):
 def create_httpd(num=80, top="html", command=WebSocketCommand, host="", ssl=False):
   if type(num) == str: num = int(num)
   reader = HttpReader(None, top)
-  reader.WSCommand = command(reader)
+  reader.WSCommand = command(reader,None)
   return SocketServer(reader, "Web", host, num, ssl)
 #  return SocketServer(reader, "Web", socket.gethostname(), num)
