@@ -105,17 +105,27 @@ class JuliusWrap(threading.Thread):
         self._julius_runkitdir = self._config.get('Julius', 'basedir')
         self._basedir = './'
 
-        self._julius_bin=os.path.join(self._julius_runkitdir, "bin", "windows", "julius.exe")
+        #self._julius_bin=os.path.join(self._julius_runkitdir, "bin", "windows", "julius.exe")
 
-        self._julius_hmm_ja   = os.path.join(self._julius_runkitdir, "model", "phone_m", "jnas-tri-3k16-gid.binhmm")
-        self._julius_hlist_ja = os.path.join(self._julius_runkitdir, "model", "phone_m", "logicalTri-3k16-gid.bin")
-        self._julius_ngram_ja = os.path.join(self._julius_runkitdir, "model", "lang_m", "bccwj.60k.bingram")
-        self._julius_dict_ja  = os.path.join(self._julius_runkitdir, "model", "lang_m", "bccwj.60k.htkdic")
+        #self._julius_hmm_ja   = os.path.join(self._julius_runkitdir, "model", "phone_m", "jnas-tri-3k16-gid.binhmm")
+        #self._julius_hlist_ja = os.path.join(self._julius_runkitdir, "model", "phone_m", "logicalTri-3k16-gid.bin")
+        #self._julius_ngram_ja = os.path.join(self._julius_runkitdir, "model", "lang_m", "bccwj.60k.bingram")
+        #self._julius_dict_ja  = os.path.join(self._julius_runkitdir, "model", "lang_m", "bccwj.60k.htkdic")
+        
+        self._julius_bin=os.path.join(self._julius_runkitdir, *(self._config.get('Julius', 'julius_bin').split('/')))
+
+        self._julius_hmm_ja   = os.path.join(self._julius_runkitdir,  *(self._config.get('Julius', 'julius_hmm_ja').split('/')))
+        self._julius_hlist_ja = os.path.join(self._julius_runkitdir,  *(self._config.get('Julius', 'julius_hlist_ja').split('/')))
+        self._julius_ngram_ja = os.path.join(self._julius_runkitdir,  *(self._config.get('Julius', 'julius_ngram_ja').split('/')))
+        self._julius_dict_ja  = os.path.join(self._julius_runkitdir,  *(self._config.get('Julius', 'julius_dict_ja').split('/')))
+ 
         #
         # for dictation
-        self._julius_bingram_ja= os.path.join(self._julius_runkitdir, "model", "lang_m", "bccwj.60k.bingram")
-        self._julius_htkdic_ja = os.path.join(self._julius_runkitdir, "model", "lang_m", "bccwj.60k.htkdic")
-
+        #self._julius_bingram_ja= os.path.join(self._julius_runkitdir, "model", "lang_m", "bccwj.60k.bingram")
+        #self._julius_htkdic_ja = os.path.join(self._julius_runkitdir, "model", "lang_m", "bccwj.60k.htkdic")
+        self._julius_bingram_ja= os.path.join(self._julius_runkitdir, *(self._config.get('Julius', 'julius_bingram_ja').split('/')))
+        self._julius_htkdic_ja = os.path.join(self._julius_runkitdir, *(self._config.get('Julius', 'julius_htkdic_ja').split('/')))
+ 
 
     def startJulius(self):
         ###########################################################
