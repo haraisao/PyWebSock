@@ -269,10 +269,13 @@ class JuliusWrap(threading.Thread):
     #  close Julius
     def close_julius(self):
         if self._modulesocket :
-            self._modulesocket.sendall("DIE\n")
-            time.sleep(1)
-            self._modulesocket.shutdown(socket.SHUT_RDWR)
-            self._modulesocket.close()
+            try:
+                self._modulesocket.sendall("DIE\n")
+                time.sleep(1)
+                self._modulesocket.shutdown(socket.SHUT_RDWR)
+                self._modulesocket.close()
+            except:
+                pass
             self._modulesocket = None
 
     #
@@ -292,10 +295,12 @@ class JuliusWrap(threading.Thread):
     #  close Adinnet
     def close_adinnet(self):
         if self._audiosocket :
-            self._audiosocket.shutdown(socket.SHUT_RDWR)
-            self._audiosocket.close()
+            try:
+                self._audiosocket.shutdown(socket.SHUT_RDWR)
+                self._audiosocket.close()
+            except:
+                pass
             self._audiosocket = None
-
 
     #
     #  get unused communication port
