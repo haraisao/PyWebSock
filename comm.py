@@ -735,9 +735,13 @@ class HttpReader(CommReader):
           else:
             if header['Content-Type'] in self.commands:
               try:
-                response = self.commands[header['Content-Type']].execute(data)
+                result = self.commands[header['Content-Type']].execute(data)
+                if result['status'] :
+                  response = self.command.respomse200(result['ctype'], result['content'])
+                else:
+                  response = self.command.response400()
               except:
-                 response = self.command.response400()
+                response = self.command.response400()
             else:
               response = self.command.response400()
             print header
@@ -761,6 +765,11 @@ class HttpReader(CommReader):
       self.sendResponse(response)
 
     return
+  #
+  #
+  #
+  def registerCommmand(self, ctype, obj):
+    self.commands[ctype] = obj
 
   #
   #

@@ -326,8 +326,6 @@ class JuliusWrap(threading.Thread):
             self._p.terminate()
         return 0
 
-
-
     #
     #
     def flush(self):
@@ -523,6 +521,21 @@ class JuliusWrap(threading.Thread):
           else:
             time.sleep(0.5)
         print "=== Timeout ==="
+        return res
+
+
+    #
+    #  execute
+    #
+    def execute(self, data):
+        print 'JuliusWrap: execute'
+        res={'status' : False, 'ctype' : 'text/xml', 'content' : '{}'}
+
+        data = self._silence + data + self._silence
+        self.write(data)
+
+        res['content'] = self.popOutput(10)
+
         return res
 
 def getWavData(fname):
