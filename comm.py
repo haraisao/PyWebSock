@@ -20,6 +20,8 @@ import struct
 import copy
 import json
 
+import traceback
+
 import itertools
 
 # for ssl
@@ -601,6 +603,7 @@ class CommReader:
         pass
     except:
       self.logger.error( "ERR in checkBuffer")
+      print traceback.format_exc()
       self._buffer=""
       pass
 
@@ -685,7 +688,8 @@ class HttpReader(CommReader):
     self.WSCommand = WebSocketCommand(None, None)
     self.WS_KEY = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     self.WS_VERSION = (8, 13)
-    
+
+    self.commands={} 
 
   #
   #
@@ -724,7 +728,23 @@ class HttpReader(CommReader):
         self.sendResponse(response)
 
     elif cmd == "POST":
-      Data = parseData(data)
+
+      if 'Content-Type' in header :
+          if header['Content-Type'] == 'text/html' :
+            Data = parseData(data)
+          else:
+            if header['Content-Type'] in self.commands:
+              try:
+                response = self.commands[header['Content-Type']].execute(data)
+              except:
+                 response = self.command.response400()
+            else:
+              response = self.command.response400()
+            print header
+            self.sendResponse(response)
+            return
+      else:
+          Data = parseData(data)
 
       if fname == "/comet_request" :
         self.cometRequest(Data)
@@ -1632,8 +1652,11 @@ def parseData(data):
   res = {}
   ar = data.split("&")
   for a in ar:
-    key, val = a.split("=")
-    res[key.strip()] = val.strip()
+    try:
+      key, val = a.split("=")
+      res[key.strip()] = val.strip()
+    except:
+      pass
   return res
 
 #
@@ -1765,6 +1788,6 @@ def findall(func, lst):
 def create_httpd(num=80, top="html", command=WebSocketCommand, host="", ssl=False):
   if type(num) == str: num = int(num)
   reader = HttpReader(None, top)
-  reader.WSCommand = command(reader,None)
+  #reader.WSCommand = command(reader,None)
   return SocketServer(reader, "Web", host, num, ssl)
 #  return SocketServer(reader, "Web", socket.gethostname(), num)
