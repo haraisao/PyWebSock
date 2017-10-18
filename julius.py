@@ -73,12 +73,16 @@ class JuliusWrap(threading.Thread):
         self._memsize = "large"
         #self._memsize = "medium"
 
+
         self._logdir = tempfile.mkdtemp()
         self._callbacks = []
         self._grammars = {}
         self._firstgrammar = True
         self._activegrammars = {}
         self._prevdata = ''
+
+        self._outdata = []
+        self._p = None
 
         self._jconf_file = ""
 
@@ -88,6 +92,7 @@ class JuliusWrap(threading.Thread):
         self._jcode = 'utf-8'
 
         self._silence = getWavData('silence.wav')
+        self._lock = threading.RLock()
 
         self._modulesocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._audiosocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -127,6 +132,8 @@ class JuliusWrap(threading.Thread):
         self._julius_htkdic_ja = os.path.join(self._julius_runkitdir, *(self._config.get('Julius', 'julius_htkdic_ja').split('/')))
  
 
+        self._jconf_file = self._config.get('Julius', 'jconf')
+ 
     def startJulius(self):
         ###########################################################
 
@@ -176,6 +183,8 @@ class JuliusWrap(threading.Thread):
        self._audioport = aport
        self._modulehost = host
        self._moduleport = mport
+       if len(self._callbacks) == 0 :
+         self.setcallback(self.onResult)
     #
     # Parameter seting for Julius
     #
@@ -231,13 +240,15 @@ class JuliusWrap(threading.Thread):
         self._cmdline.extend(["-record", self._logdir]) # 認識した音声データを連続したファイルに自動保存
         self._cmdline.extend(["-smpFreq", "16000"])     # サンプリング周波数(Hz)
 
-        self._audioport = self.getunusedport()
+        if self._audioport == 0 :
+            self._audioport = self.getunusedport()
         self._cmdline.extend(["-input", "adinnet",  "-adport",  str(self._audioport)]) # 入力の設定（adinport使用)
 
         if self._jconf_file :
             self._cmdline.extend(["-C", self._jconf_file]) # overwrite parameters by jconf file.
 
-        self._moduleport = self.getunusedport()
+        if self._moduleport == 0 :
+            self._moduleport = self.getunusedport()
         self._cmdline.extend(["-module", str(self._moduleport)])                       # module mode
 
 
@@ -250,7 +261,7 @@ class JuliusWrap(threading.Thread):
             self._modulesocket.connect((host, port))
             self._modulehost = host
             self._moduleport = port
-            return Ture
+            return True
         except socket.error:
             return False
 
@@ -258,6 +269,8 @@ class JuliusWrap(threading.Thread):
     #  close Julius
     def close_julius(self):
         if self._modulesocket :
+            self._modulesocket.sendall("DIE\n")
+            time.sleep(1)
             self._modulesocket.shutdown(socket.SHUT_RDWR)
             self._modulesocket.close()
             self._modulesocket = None
@@ -300,22 +313,28 @@ class JuliusWrap(threading.Thread):
     def terminate(self):
         print 'JuliusWrap: terminate'
         self._running = False
+
         self.close_adinnet()
         self.close_julius()
 
-        self._p.terminate()
+        if self._p :
+            self._p.terminate()
         return 0
+
+
 
     #
     #
     def flush(self):
         self.write(self._silence)
+
     #
     #
-    def loadWav(self, fname):
+    def loadWav(self, fname, tout=10):
         data=getWavData(fname)
-        data += self._silence
+        data = self._silence + data + self._silence
         self.write(data)
+        return self.popOutput(tout)
 
     #
     #   Write to audio data
@@ -348,7 +367,7 @@ class JuliusWrap(threading.Thread):
             except socket.error:
                 print 'socket error'
                 break
-            print data
+
             self._gotinput = True
             ds = data.split(".\n")
             self._prevdata = ds[-1]
@@ -427,6 +446,79 @@ class JuliusWrap(threading.Thread):
     #
     def setcallback(self, func):
         self._callbacks.append(func)
+
+
+    #
+    #
+    #
+    #  OnResult
+    #
+    def onResult(self, type, data):
+        if type == JuliusWrap.CB_DOCUMENT:
+            if data.input:
+                d=data.input
+                self._statusdata = str(d['status'])
+  
+            elif data.rejected:
+                d=data.rejected
+                self._statusdata = 'rejected'
+
+            elif data.recogout:
+                d = data.recogout
+                doc = Document()
+                listentext = doc.createElement("listenText")
+                doc.appendChild(listentext)
+                for s in d.findAll('shypo'):
+                    hypo = doc.createElement("data")
+                    score = 0
+                    count = 0
+                    text = []
+                    for w in s.findAll('whypo'):
+                        if not w['word'] or  w['word'][0] == '<':
+                            continue
+                        whypo = doc.createElement("word")
+                        whypo.setAttribute("text", w['word'])
+                        whypo.setAttribute("score", w['cm'])
+                        hypo.appendChild(whypo)
+                        text.append(w['word'])
+                        score += float(w['cm'])
+                        count += 1
+                    if count == 0:
+                        score = 0
+                    else:
+                        score = score / count
+                    hypo.setAttribute("rank", s['rank'])
+                    hypo.setAttribute("score", str(score))
+                    hypo.setAttribute("likelihood", s['score'])
+                    hypo.setAttribute("text", " ".join(text))
+                    print "#%s: %s (%s)" % (s['rank'], " ".join(text), str(score))
+                    listentext.appendChild(hypo)
+                data = doc.toxml(encoding="utf-8")
+                self.pushOutput(data)
+
+
+
+        elif type == JuliusWrap.CB_LOGWAVE:
+            pass
+    
+    def pushOutput(self, data):
+        self._lock.acquire()
+        self._outdata.append(data)
+        self._lock.release()
+
+    def popOutput(self, tout=5):
+        res = ""
+        timeout = time.time() + tout
+        while timeout - time.time() > 0:
+          if len(self._outdata) :
+            self._lock.acquire()
+            res = self._outdata.pop(0)
+            self._lock.release()
+            return res
+          else:
+            time.sleep(0.5)
+        print "=== Timeout ==="
+        return res
 
 def getWavData(fname):
     try:
