@@ -29,6 +29,7 @@ from lxml import *
 from bs4 import BeautifulSoup
 from xml.dom.minidom import Document
 
+import json
 import ConfigParser
 
 '''
@@ -101,7 +102,7 @@ class JuliusWrap(threading.Thread):
         self._modulehost = "localhost"
         self._moduleport = 0
 
-        self.loadConfigFile()
+        self.loadConfigFile("Julius_"+self._platform+".ini")
 
     def loadConfigFile(self, fname="Julius.ini"):
         self._config = ConfigParser.SafeConfigParser()
@@ -173,18 +174,20 @@ class JuliusWrap(threading.Thread):
             self._modulesocket.sendall("INPUTONCHANGE TERMINATE\n")
 
         self._running = True
+        if len(self._callbacks) == 0 :
+            self.setcallback(self.onResultJson)
 
         print "JuliusWrap started"
 
     #
     def setJuliusServer(self, host, mport, aport):
-       self._mode = 'client'
-       self._audiohost = host
-       self._audioport = aport
-       self._modulehost = host
-       self._moduleport = mport
-       if len(self._callbacks) == 0 :
-         self.setcallback(self.onResult)
+        self._mode = 'client'
+        self._audiohost = host
+        self._audioport = aport
+        self._modulehost = host
+        self._moduleport = mport
+        if len(self._callbacks) == 0 :
+            self.setcallback(self.onResultJson)
     #
     # Parameter seting for Julius
     #
@@ -499,16 +502,73 @@ class JuliusWrap(threading.Thread):
                 data = doc.toxml(encoding="utf-8")
                 self.pushOutput(data)
 
+        elif type == JuliusWrap.CB_LOGWAVE:
+            pass
+        #
+    #
+    #  OnResult
+    #
+    def onResultJson(self, type, data):
+        if type == JuliusWrap.CB_DOCUMENT:
+            if data.input:
+                d=data.input
+                self._statusdata = str(d['status'])
+                #res = { 'status' : self._statusdata }
+                #self.pushOutput(json.dumps(res))
 
+            elif data.rejected:
+                d=data.rejected
+                self._statusdata = 'rejected'
+                res={ 'status' : self._statusdata }
+                self.pushOutput(json.dumps(res))
+
+            elif data.recogout:
+                d = data.recogout
+                data = {'result': [], 'status' : '' }
+
+                for s in d.findAll('shypo'):
+                    hypo = {'confidence' : 0, 'str' : "", 'words' : [] }
+                    score = 0
+                    count = 0
+                    text = ""
+                    for w in s.findAll('whypo'):
+                        if not w['word'] or  w['word'][0] == '<':
+                            continue
+                        whypo = {}
+                        whypo["str"] = w['word']
+                        whypo["confidence"]= w['cm']
+                        hypo['words'].append(whypo)
+                        text += w['word']
+                        score += float(w['cm'])
+                        count += 1
+                    if count == 0:
+                        score = 0
+                    else:
+                        score = score / count
+                    hypo["rank"] = s['rank']
+                    hypo["confidence"] = score
+                    hypo["likelihood"] = float(s['score'])
+                    hypo["str"] = text
+                    print "#%s: %s (%s)" % (s['rank'], text, str(score))
+
+                    data['result'].append(hypo)
+
+                self.pushOutput(json.dumps(data))
 
         elif type == JuliusWrap.CB_LOGWAVE:
             pass
-    
+   
+    #
+    # Push a result to output buffer
+    #
     def pushOutput(self, data):
         self._lock.acquire()
         self._outdata.append(data)
         self._lock.release()
 
+    #
+    #  Pop a result from output buffer
+    #
     def popOutput(self, tout=5):
         res = ""
         timeout = time.time() + tout
@@ -525,17 +585,13 @@ class JuliusWrap(threading.Thread):
 
 
     #
-    #  execute
+    #  request asr
     #
-    def execute(self, data):
+    def request_asr(self, data):
         print 'JuliusWrap: execute'
-        res={'status' : False, 'ctype' : 'text/xml', 'content' : '{}'}
-
         data = self._silence + data + self._silence
         self.write(data)
-
-        res['content'] = self.popOutput(10)
-
+        res = self.popOutput(10)
         return res
 
 def getWavData(fname):

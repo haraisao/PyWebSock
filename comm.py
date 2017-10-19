@@ -32,6 +32,7 @@ import base64
 import random
 from hashlib import sha1
 
+
 #
 # logger
 # loglevel: NOTEST:0, DEBUG:10, INFO:20. WARNING:30, ERROR:40, CRITICAL:50
@@ -286,6 +287,10 @@ class SocketPort(threading.Thread):
   #  Stop background job
   #
   def terminate(self):
+    try:
+      self.reader.terminate()
+    except:
+      pass
     self.close_service()
     self.mainloop = False
     self.close()
@@ -670,6 +675,11 @@ class CommReader:
       self.owner.getServer().terminate()
     return
 
+  #
+  #
+  def terminate(self):
+    return
+
 
 ######################################
 #  Reader class for Http
@@ -689,8 +699,9 @@ class HttpReader(CommReader):
     self.WS_KEY = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     self.WS_VERSION = (8, 13)
 
-    self.commands={} 
+    self.commands={'/comet_request' : self.cometRequest, '/comet_event' : self.cometTrigger } 
 
+    self.asr = None
   #
   #
   #
@@ -703,22 +714,22 @@ class HttpReader(CommReader):
   def doProcess(self, header, data):
     self.clearResponse()
     cmd = header["Http-Command"]
-    fname = header["Http-FileName"]
+    fname = header["Http-FileName"].split('?')
 
     if cmd == "GET":
       if 'Connection' in header and header['Connection'] == "Upgrade" and 'Upgrade' in header:
         if header['Upgrade'] == "websocket":
-          self.webSocketRequest(header, fname)
+          self.webSocketRequest(header, fname[0])
 
         elif header['Upgrade'] == "sigverse":
-          self.sigverseRequest(header, fname)
+          self.sigverseRequest(header, fname[0])
 
         else:
           response = self.command.response404()
 
       else:
-        contents = get_file_contents(fname, self.dirname)
-        ctype = get_content_type(fname)
+        contents = get_file_contents(fname[0], self.dirname)
+        ctype = get_content_type(fname[0])
 
         if contents is None:
           response = self.command.response404()
@@ -728,38 +739,27 @@ class HttpReader(CommReader):
         self.sendResponse(response)
 
     elif cmd == "POST":
+      if fname[0] in self.commands  :
+        self.commands[fname[0]](data)
 
-      if 'Content-Type' in header :
-          if header['Content-Type'] == 'text/html' :
-            Data = parseData(data)
-          else:
-            if header['Content-Type'] in self.commands:
-              try:
-                result = self.commands[header['Content-Type']].execute(data)
-                if result['status'] :
-                  response = self.command.respomse200(result['ctype'], result['content'])
-                else:
-                  response = self.command.response400()
-              except:
-                response = self.command.response400()
-            else:
-              response = self.command.response400()
-            print header
+      elif fname[0] == "/asr" :
+        try:
+          if 'audio/l16' in header['Content-Type'] :
+            result = self.asr.request_asr(data)
+            response = self.command.response200('application/json; charset=utf-8', result)
+
             self.sendResponse(response)
-            return
-      else:
-          Data = parseData(data)
-
-      if fname == "/comet_request" :
-        self.cometRequest(Data)
-
-      elif fname == "/comet_event" :
-        self.cometTrigger(Data)
-
+          else:
+            esponse = self.command.response400()
+            self.sendResponse(response)
+        except:
+          response = self.command.response400()
+          self.sendResponse(response)
       else:
 	  contents = "Hello, No such action defined"
           response = self.command.response200("text/plain", contents)
           self.sendResponse(response)
+
     else:
       response = self.command.response400()
       self.sendResponse(response)
@@ -828,8 +828,9 @@ class HttpReader(CommReader):
   # for COMET
   #
   def cometRequest(self, data):
-    if data.has_key("id") :
-      self.registerHandler(data)
+    Data = parseData(data)
+    if Data.has_key("id") :
+      self.registerHandler(Data)
     else:
       response = self.command.response400()
       self.sendResponse(response)
@@ -838,16 +839,17 @@ class HttpReader(CommReader):
   #
   #
   def cometTrigger(self, data):
-     res = {}
-     if data.has_key("id") :
-       self.callHandler(data)
-       res["result"] = "OK"
-     else:
-       res["result"] = "ERROR"
+    Data = parseData(data)
+    res = {}
+    if Data.has_key("id") :
+      self.callHandler(Data)
+      res["result"] = "OK"
+    else:
+      res["result"] = "ERROR"
 
-     res["date"] = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
-     response = self.command.response200("application/json", json.dumps(res))
-     self.sendResponse(response)
+    res["date"] = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
+    response = self.command.response200("application/json", json.dumps(res))
+    self.sendResponse(response)
 
   #
   #
@@ -863,6 +865,16 @@ class HttpReader(CommReader):
   def callHandler(self, data):
     server = self.getServer()
     server.cometManager.callHandler(data['id'], data)
+    return
+
+
+  #
+  #
+  def terminate(self):
+    try:
+      self.asr.terminate()
+    except:
+      pass
     return
 
 ############################################
@@ -1028,7 +1040,8 @@ class HttpCommand(CommCommand):
         contentLen = int(self.header["Content-Length"])
 	pos += contentLen
         self.data = self._buffer[:contentLen]
-
+        if len(self.data) < contentLen:
+          return 0
       return pos
     return 0
 
@@ -1800,3 +1813,18 @@ def create_httpd(num=80, top="html", command=WebSocketCommand, host="", ssl=Fals
   #reader.WSCommand = command(reader,None)
   return SocketServer(reader, "Web", host, num, ssl)
 #  return SocketServer(reader, "Web", socket.gethostname(), num)
+
+
+######################################
+#  HTTP Server
+#
+def create_asrd(num=10000, top="html", host="", ssl=False):
+  if type(num) == str: num = int(num)
+  import julius
+  reader = HttpReader(None, top)
+  reader.asr = julius.JuliusWrap()
+  reader.asr.startJulius()
+  reader.asr.start()
+  return SocketServer(reader, "Web", host, num, ssl)
+
+
