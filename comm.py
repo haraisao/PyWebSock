@@ -84,6 +84,8 @@ class SocketPort(threading.Thread):
       self.ssl_dir = "ssl/"
       self.ssl_cert = self.ssl_dir + "server.crt"
       self.ssl_key = self.ssl_dir + "server.key"
+      #self.ssl_cert = self.ssl_dir + "certificate.pem"
+      #self.ssl_key = self.ssl_dir + "private-key.pem"
       if not os.path.isfile(self.ssl_cert) or not os.path.isfile(self.ssl_key) :
         self.logger.error("Cert or Key file not found.")
         self.ssl = False
@@ -117,7 +119,10 @@ class SocketPort(threading.Thread):
     return 
 
   def getCommand(self):
-    return self.reader.command
+    try:
+      return self.reader.command
+    except:
+      return None
 
   def setLogger(self, fname=""):
     self.logger=getLogger(self.module_name, fname)
@@ -137,9 +142,10 @@ class SocketPort(threading.Thread):
       self.socket.bind((self.host, self.port))
 
     except socket.error:
-      self.logger.error("Connection error")
+      self.logger.error("Socket error in bind")
       self.close()
       return 0
+
     except:
       self.logger.error("Error in bind %s:%d" ,self.host, self.port)
       self.close()
@@ -159,7 +165,7 @@ class SocketPort(threading.Thread):
       self.socket.connect((self.host, self.port))
 
     except socket.error:
-      self.logger.error("Connection error")
+      self.logger.error("Socket error in connect")
       self.close()
       return 0
 
@@ -307,6 +313,7 @@ class SocketPort(threading.Thread):
 
     except socket.error:
       self.logger.error( "Socket error in send")
+      print traceback.format_exc()
       self.close()
 
   # 
@@ -581,16 +588,19 @@ class CommReader:
     if flag :
       self._buffer = self._buffer[self.current:]
       self.current = 0
+      self.bufsize = len(self._buffer)
     return 
 
   def clearBuffer(self, n=0):
     if n > 0 :
       self._buffer = self._buffer[n:]
+      self.bufsize = len(self._buffer)
       self.current = 0
     else:
       if self._buffer : del self._buffer
       self._buffer = ""
       self.current = 0
+      self.bufsize = 0
 
   #
   #  Main routine ?
@@ -699,7 +709,13 @@ class HttpReader(CommReader):
     self.WS_KEY = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     self.WS_VERSION = (8, 13)
 
-    self.commands={'/comet_request' : self.cometRequest, '/comet_event' : self.cometTrigger } 
+    self.AlexaCommand = AlexaCommand(None, None)
+
+    self.commands={
+        '/seat' : self.requestSeat,
+        '/comet_request' : self.cometRequest,
+        '/comet_event' : self.cometTrigger 
+                  } 
 
     self.asr = None
   #
@@ -740,7 +756,8 @@ class HttpReader(CommReader):
 
     elif cmd == "POST":
       if fname[0] in self.commands  :
-        self.commands[fname[0]](data)
+        response = self.commands[fname[0]](data)
+        if response: self.sendResponse(response)
 
       elif fname[0] == "/asr" :
         try:
@@ -823,6 +840,13 @@ class HttpReader(CommReader):
     except:
       self.sendResponse(self.command.response404())
 
+  ###############
+  # for SEAT-Alexa
+  #
+  def requestSeat(self, data):
+    res = self.AlexaCommand.service(data)
+    response = self.command.response200('application/json;charset=UTF-8', json.dumps(res))
+    return response
 
   ###############
   # for COMET
@@ -831,9 +855,11 @@ class HttpReader(CommReader):
     Data = parseData(data)
     if Data.has_key("id") :
       self.registerHandler(Data)
+      return None
     else:
-      response = self.command.response400()
-      self.sendResponse(response)
+      return self.command.response400()
+      #response = self.command.response400()
+      #self.sendResponse(response)
 
   #
   #
@@ -848,8 +874,9 @@ class HttpReader(CommReader):
       res["result"] = "ERROR"
 
     res["date"] = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S JST")
-    response = self.command.response200("application/json", json.dumps(res))
-    self.sendResponse(response)
+    return  self.command.response200("application/json", json.dumps(res))
+    #response = self.command.response200("application/json", json.dumps(res))
+    #self.sendResponse(response)
 
   #
   #
@@ -885,6 +912,7 @@ class CommCommand:
   #  Costrutor
   #
   def __init__(self, buff, rdr=None):
+    self.module_name=__name__+'.ComCommand'
     self._buffer=buff
     self.bufsize = len(buff)
     self.reader = rdr
@@ -1450,7 +1478,7 @@ class SigverseCommand(CommCommand):
     self.terminateFlag  = False
 
 
-######################################33
+######################################
 #     ROS_Bridge_Manager
 #
 class ROS_BridgeManager:
@@ -1531,6 +1559,8 @@ class RosSubscriber:
     print "Sub:ROSMsg"
     print data
 
+#
+#
 class RosPublisher:
   def __init__(self, topic, type, comm):
     self.comm = comm
@@ -1561,6 +1591,93 @@ class RosService:
   def call(self, data ):
     print "Service:ROSMsg"
     print data
+
+#############################################
+#
+#
+class AlexaCommand(CommCommand):
+  #
+  # Constructor
+  #
+  def __init__(self, reader, func, buff=''):
+    CommCommand.__init__(self, buff, reader)
+    self.module_name = __name__+'.AlexaCommand'
+    self.func_name = func
+    self.data=""
+    self.requestReturn=False
+    self.seqMgr = seqManager()
+    self.syncQ  = syncQueue()
+    self.terminateFlag  = False
+
+  def service(self, data):
+    msg = json.loads(data)
+    if msg['request']['type'] == 'LaunchRequest' :
+      res = self.start_service("サービスをはじめます")
+    elif msg['request']['type'] == 'IntentRequest' :
+      if msg['request']['intent']['name'] == 'RequestRobot' :
+        slots = msg['request']['intent']['slots']
+        command = None
+        subject = None
+        action = None
+        if slots['command'].has_key('value'):
+          command = slots['command']['value'].encode("utf-8")
+        if slots['subject'].has_key('value'):
+          subject = slots['subject']['value'].encode("utf-8")
+        if slots['action'].has_key('value'):
+          action = slots['action']['value'].encode("utf-8")
+
+        if command :
+          res = self.mkResponse(command + "を実行します", False)
+        elif subject :
+          if action :
+            res = self.mkResponse(subject + "を" + action, False)
+          else:
+            res = self.mkResponse("目的語は、" + subject + "です", False)
+        elif action:
+            res = self.mkResponse("アクションは、" + action + "です", False)
+        else:
+          res = self.mkResponse("コマンドが見つかりません", False)
+
+      elif msg['request']['intent']['name'] == 'SearchItemIntent' :
+        name = msg['request']['intent']['slots']['ItemName']['value'].encode("utf-8")
+        res = self.mkResponse(name + "を探します", False)
+      elif msg['request']['intent']['name'] == 'SearchIntent' :
+        res = self.mkResponse("何を探すのですか？", False)
+      elif msg['request']['intent']['name'] == 'Greeting' :
+        res = self.mkResponse("こんにちは", False)
+      elif msg['request']['intent']['name'] == 'Thanks' :
+        res = self.mkResponse("どういたしまして", False)
+      else:
+        res = self.start_service("はい")
+    elif msg['request']['type'] == 'SessionEndedRequest' :
+      print msg
+      res = self.end_service("終わりました")
+
+    return res
+
+  def start_service(self, msg):
+    return self.mkResponse(msg, False);
+
+  def end_service(self, msg):
+    return self.mkResponse(msg, True);
+
+  def mkResponse(self, msg, endSession=True):
+    res = {}
+    _response={}
+
+    res["version"] = "1.0";
+    _response['outputSpeech']=self.mkOutputSpeech(msg)
+    if not endSession : _response['shouldEndSession']=False
+
+    res["response"] = _response;
+
+    return res
+
+  def mkOutputSpeech(self, msg):
+    out={}
+    out['type'] = 'SSML'
+    out['ssml'] = "<speak>"+msg+"</speak>"
+    return out
 
 
 ######################################33
@@ -1826,5 +1943,4 @@ def create_asrd(num=10000, top="html", host="", ssl=False):
   reader.asr.startJulius()
   reader.asr.start()
   return SocketServer(reader, "Web", host, num, ssl)
-
 
