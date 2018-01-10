@@ -63,7 +63,8 @@ class SocketPort(threading.Thread):
   #
   def __init__(self, reader, name, host, port, ssl=False):
     threading.Thread.__init__(self)
-    self.module_name=__name__+'.SocketPort'
+    #self.module_name=__name__+'.SocketPort'
+    self.module_name=__name__+'.'+self.__class__.__name__
     self.reader = reader
     if self.reader:
       self.reader.setOwner(self)
