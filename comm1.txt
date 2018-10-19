@@ -1,0 +1,33 @@
+CommPort
+  +-- CommServer
+  +-- CommService
+  +-- CommClient
+  +-- CommServant
+
+CommManager
+  +-- HttpManager
+  +-- WebScoketManager
+
+CommParser
+  +-- HttpParser
+  +-- WebSocketParser
+
+CommProcess
+  +-- HttpProcess
+  +-- WebScoketProcess
+  |     +-- ...
+  +-- SigverseProcess
+  +-- AlexaProcess
+  +-- JuliusProcess
+
+ROS_BridgeManager
+RosSubscriber
+RosPulisher
+RosServie
+
+CometManager
+
+SyncProcQueue
+SyncProcManager
+
+
