@@ -52,19 +52,19 @@ logger.addHandler(ch)
 
 
 
+#################################################################
 #
 # Raw Socket Adaptor
 #
-#   threading.Tread <--- SocketPort
+#   threading.Tread <--- CommPort
 #
-class SocketPort(threading.Thread):
+class CommPort(threading.Thread):
   #
   # Contsructor
   #
   def __init__(self, reader, name, host, port, ssl=False):
     threading.Thread.__init__(self)
-    #self.module_name=__name__+'.SocketPort'
-    self.module_name=__name__+'.'+self.__class__.__name__
+    self.module_name=get_module_name(self)
     self.reader = reader
     if self.reader:
       self.reader.setOwner(self)
@@ -331,16 +331,16 @@ class SocketPort(threading.Thread):
 
 ############################################
 #  Server Adaptor
-#     SocketPort <--- SocketServer
+#     CommPort <--- CommServer
 #
-class SocketServer(SocketPort):
+class CommServer(CommPort):
   #
   # Constructor
   #
   def __init__(self, reader, name, host, port, ssl=False, debug=False):
-    SocketPort.__init__(self, reader, name, host, port, ssl)
+    CommPort.__init__(self, reader, name, host, port, ssl)
     self.debug = debug
-    self.module_name=__name__+'.SocketServer'
+    self.module_name=get_module_name(self)
 
     self.setServerMode()
     self.cometManager = CometManager(self)
@@ -362,9 +362,9 @@ class SocketServer(SocketPort):
         sslconn = ssl.wrap_socket(conn, server_side=True,
                      certfile=self.ssl_cert, keyfile=self.ssl_key)
 
-        newadaptor = SocketService(self, reader, name, sslconn, addr)
+        newadaptor = CommService(self, reader, name, sslconn, addr)
       else:
-        newadaptor = SocketService(self, reader, name, conn, addr)
+        newadaptor = CommService(self, reader, name, conn, addr)
 
       if flag :
         newadaptor.start()
@@ -454,16 +454,16 @@ class SocketServer(SocketPort):
       self.logger.error( "Error: invalid index in getWS()")
       return None 
    
-#
+#################################################################
 #  Service Adaptor
 #
-class SocketService(SocketPort):
+class CommService(CommPort):
   #
   # Constructor
   #
   def __init__(self, server, reader, name, sock, addr):
-    SocketPort.__init__(self, reader, name, addr[0], addr[1])
-    self.module_name=__name__+'.SocketService'
+    CommPort.__init__(self, reader, name, addr[0], addr[1])
+    self.module_name=get_module_name(self)
     self.socket = sock
     self.server_adaptor = server
     self.name=''
@@ -526,7 +526,7 @@ class CommReader:
   # Constructor
   #
   def __init__(self, owner=None, command=None):
-    self.module_name=__name__+'.CommReader'
+    self.module_name=get_module_name(self)
     self._buffer = ""
     self.bufsize = 0
     self.current=0
@@ -540,7 +540,7 @@ class CommReader:
     self.logger = logger
 
   #
-  #  parse received data, called by SocketPort
+  #  parse received data, called by CommPort
   #
   def parse(self, data):
     if self.debug:
@@ -913,7 +913,7 @@ class CommCommand:
   #  Costrutor
   #
   def __init__(self, buff, rdr=None):
-    self.module_name=__name__+'.ComCommand'
+    self.module_name=get_module_name(self)
     self._buffer=buff
     self.bufsize = len(buff)
     self.reader = rdr
@@ -1019,7 +1019,7 @@ class HttpCommand(CommCommand):
   def __init__(self, dirname=".", buff=''):
     CommCommand.__init__(self, buff)
     self.dirname=dirname
-    self.module_name=__name__+'.HttpCommand'
+    self.module_name=get_module_name(self)
 
   #
   #
@@ -1135,7 +1135,7 @@ class WebSocketCommand(CommCommand):
   #
   def __init__(self, reader, func, buff=''):
     CommCommand.__init__(self, buff, reader)
-    self.module_name = __name__+'.WebSocketCommand'
+    self.module_name=get_module_name(self)
     self.func_name = func
     self.current_data_frame = 0x01
     self.data=""
@@ -1470,7 +1470,7 @@ class SigverseCommand(CommCommand):
   #
   def __init__(self, reader, func, buff=''):
     CommCommand.__init__(self, buff, reader)
-    self.module_name = __name__+'.SigverseCommand'
+    self.module_name=get_module_name(self)
     self.func_name = func
     self.data=""
     self.requestReturn=False
@@ -1602,7 +1602,7 @@ class AlexaCommand(CommCommand):
   #
   def __init__(self, reader, func, buff=''):
     CommCommand.__init__(self, buff, reader)
-    self.module_name = __name__+'.AlexaCommand'
+    self.module_name=get_module_name(self)
     self.func_name = func
     self.data=""
     self.requestReturn=False
@@ -1922,6 +1922,9 @@ def findall(func, lst):
   return res
 
 
+def get_module_name(obj):
+    return __name__+'.'+obj.__class__.__name__
+
 ######################################
 #  HTTP Server
 #
@@ -1929,8 +1932,8 @@ def create_httpd(num=80, top="html", command=WebSocketCommand, host="", ssl=Fals
   if type(num) == str: num = int(num)
   reader = HttpReader(None, top)
   #reader.WSCommand = command(reader,None)
-  return SocketServer(reader, "Web", host, num, ssl)
-#  return SocketServer(reader, "Web", socket.gethostname(), num)
+  return CommServer(reader, "Web", host, num, ssl)
+#  return CommServer(reader, "Web", socket.gethostname(), num)
 
 
 ######################################
@@ -1943,5 +1946,5 @@ def create_asrd(num=10000, top="html", host="", ssl=False):
   reader.asr = julius.JuliusWrap()
   reader.asr.startJulius()
   reader.asr.start()
-  return SocketServer(reader, "Web", host, num, ssl)
+  return CommServer(reader, "Web", host, num, ssl)
 
